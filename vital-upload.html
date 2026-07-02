@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Raw CSV 업로드 및 즉시 변환/QC | EXCITE plus</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <a class="brand-inline" href="dashboard.html">
+    <span class="logo-mark">E+</span>
+    <span><span class="brand-title">EXCITE plus</span></span>
+  </a>
+  <nav class="top-nav">
+    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
+      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
+    </div></div>
+    <a href="research-projects.html" data-href="research-projects.html">연구</a>
+    <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
+    <a href="tag-manager.html" data-href="tag-manager.html">태그</a>
+    <a href="statistical-analysis.html" data-href="statistical-analysis.html">통계 분석</a>
+    <a href="analysis-results.html" data-href="analysis-results.html">결과</a>
+    <a href="members.html" data-href="members.html">관리</a>
+  </nav>
+  <div class="user-area"><span>로그인 사용자</span><span class="avatar">E+</span><a href="login.html">로그아웃</a></div>
+</header>
+<div class="shell">
+<aside class="sidebar"><div class="title">작업공간</div>
+  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
+  <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
+  <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
+  <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
+  <a class="side-link" data-href="tag-manager.html" href="tag-manager.html"><strong>태그 관리</strong><span>연구별 태그 생성, 수정, 삭제</span></a>
+  <a class="side-link" data-href="statistical-analysis.html" href="statistical-analysis.html"><strong>통계 분석</strong><span>코호트 필터, 변수, 모델 설정</span></a>
+  <a class="side-link" data-href="analysis-results.html" href="analysis-results.html"><strong>결과</strong><span>저장된 분석 결과와 export</span></a>
+  <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
+</aside>
+<main class="main">
+<section class="page-hero">
+  <div class="breadcrumb">EXCITE plus</div>
+  <h2>Raw CSV 업로드 및 즉시 변환/QC</h2>
+  <p>이 화면에서는 <strong>.csv 파일만</strong> 업로드합니다. 파일을 선택하거나 드롭하면 바로 공란 없는 1분 feature CSV로 변환하고, HR·MAP·SpO2·RR이 있으면 core vital QC를, 없으면 감지된 수치형 채널의 QC 궤적을 표시합니다.</p>
+</section>
+
+<section class="grid" id="rawCsvUploadFlow">
+  <div class="card">
+    <div class="toolbar">
+      <div>
+        <h3>Raw CSV 자동 변환</h3>
+        <p class="muted" style="margin:4px 0 0">업로드 즉시 변환합니다. .vital 파일은 이 화면에서 받지 않습니다.</p>
+      </div>
+      <div class="pill-row">
+        <span class="badge teal">CSV only</span>
+        <span class="badge blue">자동 변환</span>
+        <span class="badge gray">QC 즉시 표시</span>
+      </div>
+    </div>
+
+    <input id="rawCsvAutoInput" type="file" accept=".csv,text/csv" multiple hidden>
+    <div class="upload-zone" id="rawCsvAutoDropzone">
+      <span class="badge teal">RAW CSV</span>
+      <strong>raw CSV 파일을 업로드하세요</strong>
+      <span id="rawCsvAutoStatus">파일을 선택하거나 이 영역에 드래그 앤 드롭하면 바로 변환됩니다.</span>
+      <div class="progress"><i id="rawCsvAutoProgress"></i></div>
+      <button class="btn teal" id="rawCsvAutoSelectBtn" style="margin-top:16px">CSV 파일 선택</button>
+    </div>
+  </div>
+
+  <section class="grid four">
+    <div class="card metric"><div><div class="value" id="autoCsvTotal">0개</div><div class="label">전체 CSV</div></div><span class="delta">대기</span></div>
+    <div class="card metric"><div><div class="value" id="autoCsvConverted">0개</div><div class="label">변환 완료</div></div><span class="delta">대기</span></div>
+    <div class="card metric"><div><div class="value" id="autoCsvQcDone">0개</div><div class="label">QC 완료</div></div><span class="delta">대기</span></div>
+    <div class="card metric"><div><div class="value" id="autoCsvError">0개</div><div class="label">오류</div></div><span class="delta">대기</span></div>
+  </section>
+
+  <div class="card qc-top-card" id="autoCsvQcCard">
+    <div class="toolbar">
+      <h3>신호 궤적 QC</h3>
+      <span class="badge teal">감지된 수치형 신호</span>
+    </div>
+    <div id="autoCsvQcSummary" class="callout">CSV를 업로드하면 변환 결과 요약과 궤적 QC가 여기에 표시됩니다. 여러 파일을 올린 뒤에는 아래 목록에서 파일 행을 클릭하면 해당 파일의 QC로 전환됩니다.</div>
+    <div id="autoCsvTrajectorySummary" class="empty-state" style="margin-top:12px"><strong>QC 대기</strong><span>업로드 후 감지된 수치형 신호의 궤적이 자동으로 표시됩니다.</span></div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <div>
+        <h3>업로드 및 변환 상태</h3>
+        <p class="muted" style="margin:4px 0 0">행을 클릭하면 위의 신호 궤적 QC가 해당 파일 기준으로 바뀝니다.</p>
+      </div>
+      <div>
+        <button class="btn teal" id="autoCsvDownloadFeaturesBtn">선택 feature CSV 다운로드</button>
+        <button class="btn secondary" id="autoCsvDownloadDictBtn">선택 컬럼 사전 다운로드</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>파일명</th><th>크기</th><th>case_id</th><th>변환 상태</th><th>feature rows</th><th>segment</th><th>QC</th><th>오류 메시지</th></tr>
+        </thead>
+        <tbody id="autoCsvUploadBody">
+          <tr class="empty-row"><td colspan="8"><strong>아직 업로드된 CSV가 없습니다.</strong><br><span>CSV 파일을 업로드하면 자동으로 변환 및 QC가 실행됩니다.</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
+</main>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

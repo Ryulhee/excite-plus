@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>통계 분석 | EXCITE plus</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <a class="brand-inline" href="dashboard.html">
+    <span class="logo-mark">E+</span>
+    <span><span class="brand-title">EXCITE plus</span></span>
+  </a>
+  <nav class="top-nav">
+    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
+      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
+    </div></div>
+    <a href="research-projects.html" data-href="research-projects.html">연구</a>
+    <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
+    <a href="tag-manager.html" data-href="tag-manager.html">태그</a>
+    <a href="statistical-analysis.html" data-href="statistical-analysis.html">통계 분석</a>
+    <a href="analysis-results.html" data-href="analysis-results.html">결과</a>
+    <a href="members.html" data-href="members.html">관리</a>
+  </nav>
+  <div class="user-area"><span>로그인 사용자</span><span class="avatar">E+</span><a href="login.html">로그아웃</a></div>
+</header>
+<div class="shell">
+<aside class="sidebar"><div class="title">작업공간</div>
+  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
+  <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
+  <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
+  <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
+  <a class="side-link" data-href="tag-manager.html" href="tag-manager.html"><strong>태그 관리</strong><span>연구 태그와 연구 내 분류값 관리</span></a>
+  <a class="side-link" data-href="statistical-analysis.html" href="statistical-analysis.html"><strong>통계 분석</strong><span>x축·y축·방법·유의성 확인</span></a>
+  <a class="side-link" data-href="analysis-results.html" href="analysis-results.html"><strong>결과</strong><span>저장된 분석 결과와 export</span></a>
+  <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
+</aside>
+<main class="main">
+<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>통계 분석</h2><p>연구 태그 안의 데이터를 선택하고, x축·y축·그룹·분석 방법을 직접 정한 뒤 변수별 p-value와 유의성을 확인합니다.</p></section>
+
+<section class="grid analysis">
+  <div class="card">
+    <h3>1. 데이터 선택</h3>
+    <div class="form-stack">
+      <div class="field"><label>연구 태그</label><select><option>등록된 연구 태그가 없습니다.</option></select></div>
+      <div class="field"><label>연구 내 분류값</label><select><option>전체 사용</option><option>Day/visit으로 필터</option><option>Group으로 필터</option><option>Stage/outcome으로 필터</option><option>사용자 조건식</option></select></div>
+      <div class="field"><label>분석 대상</label><select><option>연구대상자</option><option>연구 이벤트</option><option>Vital file</option><option>Vital dataset</option><option>임상자료</option><option>태그 조합</option></select></div>
+      <div class="field"><label>시간 구간</label><input class="input" placeholder="예: 전체, Day 1~Day 3, -60~240 min"></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="toolbar"><h3>2. 분석 방법 선택</h3><span class="badge gray">LMM 고정 아님</span></div>
+      <div class="method-grid">
+        <label class="mini-item"><strong><input type="radio" name="method"> 기술통계</strong><span>n, mean/SD, median/IQR, 결측 요약</span></label>
+        <label class="mini-item"><strong><input type="radio" name="method"> 그룹 비교</strong><span>t-test, Mann–Whitney, ANOVA, Kruskal–Wallis</span></label>
+        <label class="mini-item"><strong><input type="radio" name="method"> 회귀분석</strong><span>linear / logistic regression, 보정변수 포함</span></label>
+        <label class="mini-item"><strong><input type="radio" name="method"> 반복측정/시계열</strong><span>LMM, GEE, time-window summary</span></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>3. x축·y축·변수 설정</h3>
+      <div class="grid three">
+        <div class="field"><label>x축 변수</label><select><option>선택 가능한 변수가 없습니다.</option><option>시간</option><option>Day/visit</option><option>Group</option><option>사용자 지정 변수</option></select></div>
+        <div class="field"><label>y축 변수</label><select><option>선택 가능한 변수가 없습니다.</option><option>Vital numeric variable</option><option>Lab value</option><option>Clinical variable</option><option>Outcome variable</option></select></div>
+        <div class="field"><label>그룹/색상 기준</label><select><option>그룹 없음</option><option>태그 내부 Group</option><option>Day/visit</option><option>임상변수 기준</option><option>직접 조건식</option></select></div>
+      </div>
+      <div class="grid three" style="margin-top:12px">
+        <div class="field"><label>보정변수</label><input class="input" placeholder="예: age, sex, baseline value"></div>
+        <div class="field"><label>반복측정 ID</label><select><option>필요 없음</option><option>patient_id</option><option>event_id</option><option>vital_file_id</option></select></div>
+        <div class="field"><label>결과 표시</label><select><option>표 + 그래프 + 유의성</option><option>표만</option><option>그래프만</option><option>모델 진단 포함</option></select></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar"><h3>4. 그래프 스타일</h3><span class="badge teal">논문용 preview</span></div>
+      <div class="plot-style-grid">
+        <div class="field"><label>그래프 유형</label><select><option>시간 추세선</option><option>Box plot</option><option>Violin plot</option><option>Scatter plot</option><option>Spaghetti plot</option><option>Bar + CI</option></select></div>
+        <div class="field"><label>점 크기</label><input class="input" value="7.5"></div>
+        <div class="field"><label>선 두께</label><input class="input" value="2.2"></div>
+        <div class="field"><label>CI 음영</label><input class="input" value="0.14"></div>
+      </div>
+      <div id="analysisTrajectoryPreview" class="lmm-figure clean-preview" style="margin-top:14px">
+        <div class="empty-state">
+          <strong>그래프 미리보기는 아직 표시하지 않습니다.</strong>
+          <span>x축, y축, 그룹 변수, 분석 방법을 선택하고 실제 데이터가 연결되면 신호 궤적 또는 분석 그래프가 생성됩니다.</span>
+        </div>
+      </div>
+      <p class="muted">그래프 스타일 값은 실제 분석 결과가 생성될 때 점 크기, 선 두께, CI 음영, 축 라벨, legend, 패널 문자 등에 적용됩니다.</p>
+    </div>
+
+    <div class="card">
+      <div class="toolbar"><h3>5. 변수별 분석 결과 상세</h3><span class="badge gray">분석 후 자동 생성</span></div>
+      <div class="table-wrap"><table><thead><tr><th>변수</th><th>분석 방법</th><th>비교/효과</th><th>Estimate</th><th>95% CI</th><th>p-value</th><th>유의성</th><th>해석 메모</th></tr></thead><tbody><tr class="empty-row"><td colspan="8"><strong>아직 분석 결과가 없습니다.</strong><br><span>분석 실행 후 변수별 p-value, 유의/비유의 여부, 효과크기, 신뢰구간이 표시됩니다.</span></td></tr></tbody></table></div>
+    </div>
+  </div>
+
+  <aside class="card preview-card">
+    <h3>분석 미리보기</h3>
+    <div class="stat-row"><span>선택 대상자</span><strong>0명</strong></div>
+    <div class="stat-row"><span>선택 파일</span><strong>0개</strong></div>
+    <div class="stat-row"><span>관측값</span><strong>0 rows</strong></div>
+    <div class="stat-row"><span>x축</span><span class="badge gray">미선택</span></div>
+    <div class="stat-row"><span>y축</span><span class="badge gray">미선택</span></div>
+    <div class="stat-row"><span>분석 방법</span><span class="badge gray">미선택</span></div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+    <div class="codebox">분석 방법, x축, y축, 그룹, 보정변수를 선택하면 model formula와 filter setting이 이곳에 기록됩니다.</div>
+    <button class="btn teal" style="width:100%;margin-top:14px" data-disabled-action="분석할 데이터와 분석 방법을 먼저 선택해 주세요.">분석 실행</button>
+  </aside>
+</section>
+<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
+</main>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

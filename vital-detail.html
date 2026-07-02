@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vital 파일 상세 | EXCITE plus</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <a class="brand-inline" href="dashboard.html">
+    <span class="logo-mark">E+</span>
+    <span><span class="brand-title">EXCITE plus</span></span>
+  </a>
+  <nav class="top-nav">
+    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
+      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
+    </div></div>
+    <a href="research-projects.html" data-href="research-projects.html">연구</a>
+    <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
+    <a href="tag-manager.html" data-href="tag-manager.html">태그</a>
+    <a href="statistical-analysis.html" data-href="statistical-analysis.html">통계 분석</a>
+    <a href="analysis-results.html" data-href="analysis-results.html">결과</a>
+    <a href="members.html" data-href="members.html">관리</a>
+  </nav>
+  <div class="user-area"><span>로그인 사용자</span><span class="avatar">E+</span><a href="login.html">로그아웃</a></div>
+</header>
+<div class="shell">
+<aside class="sidebar"><div class="title">작업공간</div>
+  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
+  <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
+  <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
+  <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
+  <a class="side-link" data-href="tag-manager.html" href="tag-manager.html"><strong>태그 관리</strong><span>연구별 태그 생성, 수정, 삭제</span></a>
+  <a class="side-link" data-href="statistical-analysis.html" href="statistical-analysis.html"><strong>통계 분석</strong><span>코호트 필터, 변수, 모델 설정</span></a>
+  <a class="side-link" data-href="analysis-results.html" href="analysis-results.html"><strong>결과</strong><span>저장된 분석 결과와 export</span></a>
+  <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
+</aside>
+<main class="main">
+<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>Vital 파일 상세</h2><p>Vital 파일의 metadata, track 정보, 처리 설정, 태그, audit history를 확인합니다.</p></section>
+
+<section class="split"><div class="grid"><div class="card"><h3>파일 정보</h3><div class="empty-state"><strong>선택된 Vital 파일이 없습니다.</strong><span>등록대장에서 파일을 선택하면 metadata, track, 태그, 처리 설정이 표시됩니다.</span></div></div><div class="card"><h3>Track metadata</h3><div class="table-wrap"><table><thead><tr><th>변수</th><th>유형</th><th>sampling</th><th>사용 여부</th></tr></thead><tbody><tr class="empty-row"><td colspan="4"><strong>표시할 track metadata가 없습니다.</strong><br><span>데이터를 업로드하거나 조건을 선택하면 이 영역에 표시됩니다.</span></td></tr></tbody></table></div></div></div><aside class="card preview-card"><h3>미리보기 그래프</h3><div class="empty-state"><strong>그래프를 표시할 수 없습니다.</strong><span>파일 처리 후 time bin summary 또는 원자료 일부 구간이 표시됩니다.</span></div></aside></section>
+
+<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
+</main>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>내보내기 · CSV 변환 | EXCITE plus</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <a class="brand-inline" href="dashboard.html">
+    <span class="logo-mark">E+</span>
+    <span><span class="brand-title">EXCITE plus</span></span>
+  </a>
+  <nav class="top-nav">
+    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
+      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
+    </div></div>
+    <a href="research-projects.html" data-href="research-projects.html">연구</a>
+    <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
+    <a href="tag-manager.html" data-href="tag-manager.html">태그</a>
+    <a href="statistical-analysis.html" data-href="statistical-analysis.html">통계 분석</a>
+    <a href="analysis-results.html" data-href="analysis-results.html">결과</a>
+    <a href="members.html" data-href="members.html">관리</a>
+  </nav>
+  <div class="user-area"><span>로그인 사용자</span><span class="avatar">E+</span><a href="login.html">로그아웃</a></div>
+</header>
+<div class="shell">
+<aside class="sidebar"><div class="title">작업공간</div>
+  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
+  <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
+  <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
+  <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
+  <a class="side-link" data-href="tag-manager.html" href="tag-manager.html"><strong>태그 관리</strong><span>연구별 태그 생성, 수정, 삭제</span></a>
+  <a class="side-link" data-href="statistical-analysis.html" href="statistical-analysis.html"><strong>통계 분석</strong><span>코호트 필터, 변수, 모델 설정</span></a>
+  <a class="side-link" data-href="analysis-results.html" href="analysis-results.html"><strong>결과</strong><span>저장된 분석 결과와 export</span></a>
+  <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
+</aside>
+<main class="main">
+<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>Raw CSV 변환 / 내보내기</h2><p>.vital에서 추출한 raw CSV를 업로드해 공란 없는 coding-ready 1분 feature CSV로 변환하고, 신호 궤적을 QC합니다.</p></section>
+
+
+<section class="grid" id="csvConverterCard">
+  <div class="card">
+    <div class="toolbar">
+      <div>
+        <h3>Raw CSV → 코딩용 1분 feature CSV 변환</h3>
+        <p class="muted" style="margin:4px 0 0">입력은 .vital에서 추출한 <strong>raw CSV</strong>입니다. 변환 결과는 공란 없는 coding-ready CSV이며, 구조적 결측은 count, valid ratio, missing rate로 기록합니다.</p>
+      </div>
+      <div class="pill-row"><span class="badge teal">raw CSV</span><span class="badge blue">공란 없는 CSV</span><span class="badge gray">ML feature</span></div>
+    </div>
+    <input id="csvRawInput" type="file" accept=".csv,text/csv" hidden>
+    <div class="grid two">
+      <div class="upload-zone" style="padding:24px">
+        <span class="badge teal">RAW CSV</span>
+        <strong>raw CSV 파일 선택</strong>
+        <span id="csvSelectedFileName">선택된 raw CSV 없음</span>
+        <div style="margin-top:14px"><button class="btn teal" id="csvSelectBtn">raw CSV 파일 선택</button><button class="btn secondary" id="csvConvertBtn">1분 feature CSV 변환</button></div>
+        <div class="helper" style="margin-top:10px">CSV는 브라우저에서 즉시 읽어 1분 feature와 궤적 QC를 생성합니다. .vital 원본 파싱은 이후 백엔드에서 별도로 연결합니다.</div>
+      </div>
+      <div class="card compact" style="box-shadow:none">
+        <h3>변환 설정</h3>
+        <div class="grid three">
+          <div class="field"><label>segment gap, 초</label><input class="input" id="csvSegmentGapSec" type="number" value="300"></div>
+          <div class="field"><label>파일명 기준 최대 시간, h</label><input class="input" id="csvMaxHours" type="number" value="24"></div>
+          <div class="field"><label>최소 segment, 분</label><input class="input" id="csvMinSegmentMinutes" type="number" value="1"></div>
+          <div class="field"><label>미래 label horizon, 분</label><input class="input" id="csvFutureHorizon" type="number" value="5"></div>
+          <div class="field"><label>MAP threshold</label><input class="input" id="csvMapThreshold" type="number" value="65"></div>
+          <div class="field"><label>옵션</label><div class="mini-list" style="gap:6px"><label><input type="checkbox" id="csvFilterByFilenameTime" checked> 파일명 시간 기준 필터</label><label><input type="checkbox" id="csvFutureLabel" checked> 미래 저혈압 label 생성</label><label><input type="checkbox" id="csvIncompleteFutureNa" checked> 마지막 incomplete label은 NA 처리</label></div></div>
+        </div>
+      </div>
+    </div>
+    <div id="csvConversionStatus" class="callout" style="margin-top:14px">raw CSV 파일을 선택하면 변환 결과 요약이 여기에 표시됩니다.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="toolbar"><h3>변환 작업 요약</h3><div><button class="btn teal" id="csvDownloadFeaturesBtn">feature CSV 다운로드</button><button class="btn secondary" id="csvDownloadDictBtn">컬럼 사전 다운로드</button></div></div>
+      <div id="csvFeatureSummary" class="empty-state"><strong>아직 변환된 CSV가 없습니다.</strong><span>raw CSV를 선택한 뒤 1분 feature CSV 변환을 실행하세요.</span></div>
+    </div>
+    <div class="card">
+      <h3>raw CSV 컬럼 → 표준 변수 매칭</h3>
+      <div class="table-wrap"><table><thead><tr><th>표준 변수</th><th>raw CSV 원본 컬럼</th><th>상태</th></tr></thead><tbody id="csvColumnMapBody"><tr class="empty-row"><td colspan="3"><strong>아직 컬럼 매칭 결과가 없습니다.</strong><br><span>CSV 변환을 실행하면 core vital과 감지된 수치형 auxiliary channel 매칭 결과가 표시됩니다.</span></td></tr></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>코딩용 CSV 컬럼 미리보기</h3>
+    <div class="table-wrap"><table><thead id="csvFeaturePreviewHead"><tr><th>결과 없음</th></tr></thead><tbody id="csvFeaturePreviewBody"><tr class="empty-row"><td><strong>아직 생성된 컬럼 사전이 없습니다.</strong><br><span>CSV 변환 후 coding-ready feature row 일부를 보여줍니다.</span></td></tr></tbody></table></div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar"><h3>신호 궤적 QC</h3><span class="badge teal">감지된 수치형 신호</span></div>
+    <div id="vitalTrajectorySummary" class="empty-state"><strong>아직 신호 궤적이 없습니다.</strong><span>raw CSV를 변환하면 core vital 또는 감지된 수치형 channel 궤적이 이 영역에 표시됩니다.</span></div>
+  </div>
+</section>
+
+<section class="grid two"><div class="card"><h3>내보내기 대상</h3><div class="form-stack"><div class="field"><label>대상 종류</label><select><option>선택한 연구 태그 dataset</option><option>선택한 Raw CSV / Vital 파일</option><option>분석 결과</option><option>metadata</option><option>audit log</option></select></div><div class="field"><label>태그/분석 선택</label><select><option>선택 가능한 항목이 없습니다.</option></select></div><div class="field"><label>파일 형식</label><select><option>CSV</option><option>Excel</option><option>원본 vital</option><option>Parquet</option><option>JSON settings</option><option>PDF report</option></select></div><button class="btn teal" data-disabled-action="내보낼 데이터가 없습니다.">내보내기 생성</button></div></div><div class="card"><h3>최근 내보내기</h3><div class="table-wrap"><table><thead><tr><th>파일</th><th>형식</th><th>생성자</th><th>상태</th></tr></thead><tbody><tr class="empty-row"><td colspan="4"><strong>아직 생성된 내보내기 파일이 없습니다.</strong><br><span>데이터를 업로드하거나 조건을 선택하면 이 영역에 표시됩니다.</span></td></tr></tbody></table></div></div></section>
+
+<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
+</main>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

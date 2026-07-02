@@ -1,0 +1,2642 @@
+/* EXCITE plus Vital DB Research Platform
+   Front-end prototype logic: localStorage 기반으로 서버 연결 전 기능을 검증합니다.
+   실제 배포 시 saveState/loadState 부분을 API 호출로 교체하면 됩니다. */
+(function () {
+  const STORE_KEY = 'excite_plus_vitaldb_state_v2';
+  const USER = '로그인 사용자';
+
+  const DEFAULT_STATE = {
+    tags: [],
+    axes: [],
+    vitalFiles: [],
+    variables: [],
+    variableDefinitions: [],
+    assignments: [],
+    analyses: [],
+    users: [],
+    signupRequests: [],
+    audit: [],
+    csvConversions: [],
+    vitalConversions: [],
+    patients: [],
+    studyPatients: [],
+    projects: []
+  };
+
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+
+  function readState() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(STORE_KEY));
+      return Object.assign({}, DEFAULT_STATE, parsed || {});
+    } catch (error) {
+      console.warn('state read failed', error);
+      return structuredClone(DEFAULT_STATE);
+    }
+  }
+
+  function writeState(state) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  }
+
+  function patchState(mutator) {
+    const state = readState();
+    mutator(state);
+    writeState(state);
+    return state;
+  }
+
+  function uid(prefix) {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
+  }
+
+  function nowText() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function formatBytes(bytes) {
+    const n = Number(bytes || 0);
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+    return `${(n / 1024 ** 3).toFixed(2)} GB`;
+  }
+
+  function badge(text, tone = 'gray') {
+    return `<span class="badge ${tone}">${escapeHtml(text)}</span>`;
+  }
+
+  function normalizeTagColor(color) {
+    const named = { Navy: '#0b1f3a', Teal: '#0b8f8a', Blue: '#1d5d9b', Gray: '#66768c', Warning: '#9a5b00' };
+    const value = String(color || '').trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
+    return named[value] || '#0b8f8a';
+  }
+
+  function tagBadge(tagOrName) {
+    const tag = typeof tagOrName === 'object' ? tagOrName : null;
+    const name = tag ? tag.name : tagOrName;
+    const color = normalizeTagColor(tag?.color);
+    return `<span class="badge tag-badge-custom" style="background:${color};border-color:${color};color:#fff">${escapeHtml(name)}</span>`;
+  }
+
+  function colorSwatch(color) {
+    const value = normalizeTagColor(color);
+    return `<span class="tag-color-cell"><i style="background:${value}"></i><code>${escapeHtml(value)}</code></span>`;
+  }
+
+  function addAudit(action, target, description) {
+    patchState(state => {
+      state.audit.unshift({ id: uid('AUDIT'), time: nowText(), user: USER, action, target, description, status: 'success' });
+      state.audit = state.audit.slice(0, 200);
+    });
+  }
+
+  function toast(message, tone = 'teal') {
+    let wrap = $('#toast-wrap');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'toast-wrap';
+      wrap.className = 'toast-wrap';
+      document.body.appendChild(wrap);
+    }
+    const el = document.createElement('div');
+    el.className = `toast ${tone}`;
+    el.textContent = message;
+    wrap.appendChild(el);
+    setTimeout(() => el.classList.add('show'), 10);
+    setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 220);
+    }, 2600);
+  }
+
+  function downloadText(filename, content, mime = 'text/plain;charset=utf-8') {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function currentPage() {
+    return location.pathname.split('/').pop() || 'dashboard.html';
+  }
+
+  function cardByHeading(text) {
+    return $$('.card').find(card => {
+      const h = $('h3', card);
+      return h && h.textContent.trim().includes(text);
+    });
+  }
+
+  function setMetricByLabel(labelText, valueText, deltaText) {
+    const cards = $$('.card.metric');
+    const card = cards.find(c => $('.label', c)?.textContent.includes(labelText));
+    if (!card) return;
+    const value = $('.value', card);
+    const delta = $('.delta', card);
+    if (value) value.textContent = valueText;
+    if (delta && deltaText) delta.textContent = deltaText;
+  }
+
+  function setTableEmpty(tbody, colspan, title, msg) {
+    if (!tbody) return;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="${colspan}"><strong>${escapeHtml(title)}</strong><br><span>${escapeHtml(msg)}</span></td></tr>`;
+  }
+
+  function option(value, text, selected = false) {
+    return `<option value="${escapeHtml(value)}"${selected ? ' selected' : ''}>${escapeHtml(text)}</option>`;
+  }
+
+  function fillTagSelect(select, placeholder = '등록된 연구 태그가 없습니다.') {
+    if (!select) return;
+    const state = readState();
+    if (!state.tags.length) {
+      select.innerHTML = option('', placeholder);
+      return;
+    }
+    const previous = select.value;
+    select.innerHTML = option('', '연구 태그 선택') + state.tags.map(t => option(t.id, t.name, previous === t.id)).join('');
+  }
+
+  function axesForTag(tagId) {
+    const state = readState();
+    return state.axes.filter(a => a.tagId === tagId);
+  }
+
+  function valuesForAxis(tagId, axisName) {
+    const axis = axesForTag(tagId).find(a => a.name.toLowerCase() === axisName.toLowerCase() || a.name.includes(axisName));
+    return axis ? axis.values || [] : [];
+  }
+
+  function axisValueOptions(tagId, keywords, fallback = '등록된 표준값 없음') {
+    const axes = axesForTag(tagId);
+    const matched = axes.find(axis => keywords.some(k => axis.name.toLowerCase().includes(k.toLowerCase())));
+    if (!matched || !matched.values?.length) return option('', fallback) + option('__direct__', '직접 작성 후 등록');
+    return option('', '선택 안 함') + matched.values.map(v => option(v.label, v.label)).join('') + option('__direct__', '직접 작성 후 등록');
+  }
+
+  function selectedText(select) {
+    if (!select) return '';
+    const opt = select.options[select.selectedIndex];
+    return opt && select.value ? opt.textContent.trim() : '';
+  }
+
+  function removeDisabledAction(el) {
+    if (el) el.removeAttribute('data-disabled-action');
+  }
+
+  function commonInit() {
+    const page = currentPage();
+    $$('[data-href]').forEach(a => {
+      if (a.dataset.href === page) a.classList.add('active');
+    });
+
+    $$('.dropdown .dropbtn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const parent = btn.closest('.dropdown');
+        $$('.dropdown.open').forEach(d => { if (d !== parent) d.classList.remove('open'); });
+        parent?.classList.toggle('open');
+      });
+    });
+
+  
+  document.addEventListener('click', (e) => {
+      if (!e.target.closest('.dropdown')) $$('.dropdown.open').forEach(d => d.classList.remove('open'));
+    });
+  }
+
+  function bindFallbackDisabledButtons() {
+    $$('[data-disabled-action]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        toast(btn.dataset.disabledAction || '데이터를 먼저 등록해 주세요.', 'gray');
+      });
+    });
+  }
+
+  function initLogin() {
+    const submit = $('#loginSubmit');
+    if (!submit) return;
+    submit.addEventListener('click', () => {
+      const email = ($('#loginEmail')?.value || '').trim().toLowerCase();
+      const password = $('#loginPassword')?.value || '';
+      const state = readState();
+      const user = (state.users || []).find(u => (u.email || '').toLowerCase() === email);
+      const pending = (state.signupRequests || []).find(u => (u.email || '').toLowerCase() === email && u.status === '승인 대기');
+
+      if (!email && !password) {
+        location.href = 'dashboard.html';
+        return;
+      }
+      if (pending) {
+        toast('아직 관리자 승인 대기 중인 계정입니다.', 'yellow');
+        return;
+      }
+      if (user && user.password === password && user.status === '활성') {
+        localStorage.setItem('excite_plus_current_user', JSON.stringify({ name: user.name, email: user.email, role: user.role }));
+        addAudit('login', 'user', `${user.email} 로그인`);
+        location.href = 'dashboard.html';
+        return;
+      }
+      toast('프론트 프로토타입에서는 빈 값으로 로그인하거나, 회원가입 후 관리자 화면에서 승인해 주세요.', 'gray');
+    });
+  }
+
+  function initSignup() {
+    const submit = $('#signupSubmit');
+    if (!submit) return;
+    submit.addEventListener('click', () => {
+      const name = ($('#signupName')?.value || '').trim();
+      const email = ($('#signupEmail')?.value || '').trim().toLowerCase();
+      const password = $('#signupPassword')?.value || '';
+      const confirm = $('#signupPasswordConfirm')?.value || '';
+      const role = $('#signupRole')?.value || '';
+      const affiliation = ($('#signupAffiliation')?.value || '').trim();
+      const reason = ($('#signupReason')?.value || '').trim();
+
+      if (!name || !email || !password || !confirm || !role) {
+        toast('이름, 이메일, 비밀번호, 요청 역할은 필수입니다.', 'yellow');
+        return;
+      }
+      if (!email.includes('@')) {
+        toast('이메일 형식을 확인해 주세요.', 'yellow');
+        return;
+      }
+      if (password !== confirm) {
+        toast('비밀번호 확인이 일치하지 않습니다.', 'yellow');
+        return;
+      }
+      const state = readState();
+      const exists = [...(state.users || []), ...(state.signupRequests || [])]
+        .some(u => (u.email || '').toLowerCase() === email);
+      if (exists) {
+        toast('이미 등록되었거나 승인 대기 중인 이메일입니다.', 'yellow');
+        return;
+      }
+
+      patchState(s => {
+        if (!Array.isArray(s.signupRequests)) s.signupRequests = [];
+        s.signupRequests.unshift({
+          id: uid('REQ'), name, email, password, role, affiliation, reason,
+          status: '승인 대기', requestedAt: nowText()
+        });
+        s.audit.unshift({ id: uid('AUDIT'), time: nowText(), user: name, action: 'signup request', target: 'user', description: `${email} 회원가입 신청`, status: 'pending' });
+      });
+      toast('회원가입 신청이 저장되었습니다. 관리자 승인 후 사용할 수 있습니다.');
+      setTimeout(() => { location.href = 'login.html'; }, 900);
+    });
+  }
+
+  function initMembers() {
+    const state = readState();
+    const memberCard = cardByHeading('구성원 목록');
+    const memberBody = memberCard ? $('tbody', memberCard) : null;
+    if (memberBody) {
+      const rows = (state.users || []).map(u => `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.email)}</td><td>${badge(u.role || 'Viewer', 'blue')}</td><td>${escapeHtml(u.affiliation || '')}</td><td>${badge(u.status || '활성', 'green')}</td><td>${escapeHtml(u.lastLogin || '-')}</td><td><button class="btn ghost" data-deactivate-user="${escapeHtml(u.id)}">비활성</button></td></tr>`).join('');
+      memberBody.innerHTML = rows || `<tr class="empty-row"><td colspan="7"><strong>아직 등록된 구성원이 없습니다.</strong><br><span>회원가입 신청을 승인하면 구성원 목록에 표시됩니다.</span></td></tr>`;
+    }
+
+    const requestBody = $('#signupRequestBody');
+    if (requestBody) {
+      const rows = (state.signupRequests || []).map(r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.email)}</td><td>${badge(r.role || 'Viewer', 'gray')}</td><td>${escapeHtml(r.affiliation || '')}</td><td>${escapeHtml(r.requestedAt || '')}</td><td>${badge(r.status || '승인 대기', r.status === '승인 완료' ? 'green' : 'yellow')}</td><td><button class="btn teal" data-approve-request="${escapeHtml(r.id)}">승인</button> <button class="btn ghost" data-reject-request="${escapeHtml(r.id)}">거절</button></td></tr>`).join('');
+      requestBody.innerHTML = rows || `<tr class="empty-row"><td colspan="7"><strong>아직 회원가입 신청이 없습니다.</strong><br><span>회원가입 화면에서 신청하면 이 목록에 표시됩니다.</span></td></tr>`;
+    }
+
+    $$('[data-approve-request]').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.dataset.approveRequest;
+      patchState(s => {
+        const idx = (s.signupRequests || []).findIndex(r => r.id === id);
+        if (idx < 0) return;
+        const r = s.signupRequests[idx];
+        if (!Array.isArray(s.users)) s.users = [];
+        s.users.unshift({
+          id: uid('USER'), name: r.name, email: r.email, password: r.password,
+          role: r.role || 'Viewer', affiliation: r.affiliation || '', status: '활성',
+          createdAt: nowText(), lastLogin: '-'
+        });
+        s.signupRequests.splice(idx, 1);
+        s.audit.unshift({ id: uid('AUDIT'), time: nowText(), user: USER, action: 'member approval', target: 'user', description: `${r.email} 승인`, status: 'success' });
+      });
+      toast('회원가입 신청을 승인했습니다.');
+      initMembers();
+    }));
+
+    $$('[data-reject-request]').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.dataset.rejectRequest;
+      patchState(s => {
+        const r = (s.signupRequests || []).find(x => x.id === id);
+        s.signupRequests = (s.signupRequests || []).filter(x => x.id !== id);
+        s.audit.unshift({ id: uid('AUDIT'), time: nowText(), user: USER, action: 'member reject', target: 'user', description: `${r?.email || id} 거절`, status: 'success' });
+      });
+      toast('회원가입 신청을 거절했습니다.', 'gray');
+      initMembers();
+    }));
+
+    $$('[data-deactivate-user]').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.dataset.deactivateUser;
+      patchState(s => {
+        const user = (s.users || []).find(u => u.id === id);
+        if (user) user.status = user.status === '활성' ? '비활성' : '활성';
+      });
+      initMembers();
+    }));
+  }
+
+  function refreshDashboard() {
+    const state = readState();
+    const totalVital = state.vitalFiles.length;
+    const error = state.vitalFiles.filter(f => f.uploadStatus === '오류').length;
+    const tagged = state.vitalFiles.filter(f => (f.tagIds || []).length > 0).length;
+    const untagged = state.vitalFiles.filter(f => f.uploadStatus !== '오류' && !(f.tagIds || []).length).length;
+    const waitingMatch = state.vitalFiles.filter(f => f.uploadStatus !== '오류' && !f.patientId).length;
+    const subjects = new Set(state.assignments.map(a => a.patientId).filter(Boolean));
+
+    setMetricByLabel('등록된 연구대상자', `${subjects.size}명`, subjects.size ? '등록됨' : '대기');
+    setMetricByLabel('업로드된 Vital 파일', `${totalVital}개`, totalVital ? '등록됨' : '대기');
+    setMetricByLabel('활성 연구 태그', `${state.tags.length}개`, state.tags.length ? '등록됨' : '대기');
+    setMetricByLabel('미태그 Vital 파일', `${untagged}개`, untagged ? '확인 필요' : '대기');
+
+    const recentCard = cardByHeading('최근 업로드');
+    const recentBody = recentCard ? $('tbody', recentCard) : null;
+    if (recentBody) {
+      const rows = state.vitalFiles.slice(0, 6).map(f => `<tr><td>${escapeHtml(f.name)}</td><td>.vital</td><td>${escapeHtml(f.uploadedBy || USER)}</td><td>${badge(f.uploadStatus || '업로드 완료', f.uploadStatus === '오류' ? 'red' : 'green')}</td></tr>`).join('');
+      recentBody.innerHTML = rows || `<tr class="empty-row"><td colspan="4"><strong>아직 업로드된 파일이 없습니다.</strong><br><span>Vital 파일을 업로드하면 최근 목록에 표시됩니다.</span></td></tr>`;
+    }
+
+    const donut = $('.donut');
+    if (donut) {
+      const safeTotal = Math.max(totalVital, 1);
+      const degTagged = tagged / safeTotal * 360;
+      const degUntagged = untagged / safeTotal * 360;
+      const degWaiting = waitingMatch / safeTotal * 360;
+      const a = degTagged;
+      const b = a + degUntagged;
+      const c = b + degWaiting;
+      donut.style.background = totalVital
+        ? `conic-gradient(var(--teal) 0deg ${a}deg, #98a2b3 ${a}deg ${b}deg, #f79009 ${b}deg ${c}deg, #f04438 ${c}deg 360deg)`
+        : 'conic-gradient(#e5ebf3 0deg 360deg)';
+      const center = $('.donut-center strong', donut);
+      if (center) center.textContent = String(totalVital);
+    }
+    const legend = $$('.legend-item strong');
+    if (legend[0]) legend[0].textContent = `${tagged}개`;
+    if (legend[1]) legend[1].textContent = `${untagged}개`;
+    if (legend[2]) legend[2].textContent = `${waitingMatch}개`;
+    if (legend[3]) legend[3].textContent = `${error}개`;
+
+    const analysisCard = cardByHeading('분석 작업 현황');
+    const analysisBody = analysisCard ? $('tbody', analysisCard) : null;
+    if (analysisBody) {
+      const rows = state.analyses.slice(0, 6).map(a => `<tr><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.tagName || '미선택')}</td><td>${badge(a.status || '계산 대기', 'blue')}</td><td><a class="btn ghost" href="analysis-results.html">보기</a></td></tr>`).join('');
+      analysisBody.innerHTML = rows || `<tr class="empty-row"><td colspan="4"><strong>아직 실행된 분석이 없습니다.</strong><br><span>통계 분석 화면에서 분석 설정을 저장하면 표시됩니다.</span></td></tr>`;
+    }
+  }
+
+  function initVitalUpload() {
+    const flow = $('#rawCsvUploadFlow');
+    if (!flow) return;
+
+    const fileInput = $('#rawCsvAutoInput');
+    const selectBtn = $('#rawCsvAutoSelectBtn');
+    const dropzone = $('#rawCsvAutoDropzone');
+    const progress = $('#rawCsvAutoProgress');
+    const status = $('#rawCsvAutoStatus');
+    const body = $('#autoCsvUploadBody');
+    const qcSummary = $('#autoCsvQcSummary');
+    const qcPanel = $('#autoCsvTrajectorySummary');
+    const downloadFeatures = $('#autoCsvDownloadFeaturesBtn');
+    const downloadDict = $('#autoCsvDownloadDictBtn');
+
+    [selectBtn, downloadFeatures, downloadDict].forEach(removeDisabledAction);
+    let latestResult = null;
+
+    const setProgressLocal = (pct) => {
+      if (progress) progress.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    };
+    const setStatusLocal = (msg) => {
+      if (status) status.textContent = msg;
+    };
+    const setMetricText = (id, value, delta) => {
+      const el = $(id);
+      if (el) el.textContent = value;
+      const metric = el?.closest('.metric');
+      const d = metric ? $('.delta', metric) : null;
+      if (d) d.textContent = delta || '대기';
+    };
+
+    selectBtn?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', () => processAutoCsvFiles(fileInput.files));
+
+    dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      processAutoCsvFiles(e.dataTransfer.files);
+    });
+
+    downloadFeatures?.addEventListener('click', () => {
+      if (!latestResult?.features?.length) return toast('먼저 CSV를 업로드해 자동 변환을 완료하세요.', 'gray');
+      downloadText(latestResult.outputName || `${latestResult.caseId}_ml_features.csv`, '\uFEFF' + toCsv(latestResult.features), 'text/csv;charset=utf-8');
+      addExportRow(latestResult.outputName || `${latestResult.caseId}_ml_features.csv`, 'CSV');
+    });
+
+    downloadDict?.addEventListener('click', () => {
+      if (!latestResult?.dictionary?.length) return toast('먼저 CSV를 업로드해 자동 변환을 완료하세요.', 'gray');
+      downloadText(latestResult.dictionaryName || `${latestResult.caseId}_column_dictionary.csv`, '\uFEFF' + toCsv(latestResult.dictionary), 'text/csv;charset=utf-8');
+      addExportRow(latestResult.dictionaryName || `${latestResult.caseId}_column_dictionary.csv`, 'CSV');
+    });
+
+    async function processAutoCsvFiles(fileList) {
+      const files = Array.from(fileList || []);
+      if (!files.length) return;
+      const csvFiles = files.filter(file => file.name.toLowerCase().endsWith('.csv'));
+      const rejected = files.filter(file => !file.name.toLowerCase().endsWith('.csv'));
+
+      if (rejected.length) {
+        toast('.vital 포함 비CSV 파일은 이 화면에서 업로드할 수 없습니다. raw CSV만 선택하세요.', 'yellow');
+      }
+      if (!csvFiles.length) {
+        setStatusLocal('CSV 파일만 업로드할 수 있습니다. .vital 파일은 차단되었습니다.');
+        return;
+      }
+
+      setMetricText('#autoCsvTotal', `${csvFiles.length}개`, '처리 중');
+      setMetricText('#autoCsvConverted', '0개', '진행');
+      setMetricText('#autoCsvQcDone', '0개', '진행');
+      setMetricText('#autoCsvError', `${rejected.length}개`, rejected.length ? '확인' : '대기');
+      setProgressLocal(12);
+      setStatusLocal(`${csvFiles.length}개 CSV 자동 변환을 시작합니다.`);
+
+      let converted = 0;
+      let errors = rejected.length;
+      const rowsForTable = rejected.map(file => ({
+        name: file.name,
+        size: file.size,
+        caseId: '-',
+        status: '차단',
+        featureRows: '-',
+        segmentCount: '-',
+        qc: '불가',
+        error: '.csv만 업로드 가능'
+      }));
+
+      for (let i = 0; i < csvFiles.length; i++) {
+        const file = csvFiles[i];
+        setProgressLocal(15 + Math.round((i / csvFiles.length) * 65));
+        setStatusLocal(`${file.name} 변환 중...`);
+        try {
+          const result = await convertRawVitalCsvFile(file);
+          result.sourceFile = file.name;
+          result.sourceType = 'raw CSV';
+          result.outputName = `${result.caseId}_ml_features.csv`;
+          result.dictionaryName = `${result.caseId}_column_dictionary.csv`;
+          latestResult = result;
+          window.__exciteCsvConversion = result;
+          window.__exciteVitalConversion = result;
+          converted += 1;
+
+          rowsForTable.push({
+            name: file.name,
+            size: file.size,
+            caseId: result.caseId,
+            status: '변환 완료',
+            featureRows: result.features.length,
+            segmentCount: result.segmentCount,
+            qc: 'QC 완료',
+            error: '-'
+          });
+
+          patchState(s => {
+            const duplicateIndex = s.vitalFiles.findIndex(v => v.name === file.name && v.size === file.size);
+            const item = {
+              id: duplicateIndex >= 0 ? s.vitalFiles[duplicateIndex].id : uid('CSVF'),
+              caseId: result.caseId,
+              name: file.name,
+              size: file.size,
+              sourceType: 'raw CSV',
+              uploadedBy: USER,
+              uploadedAt: nowText(),
+              uploadStatus: '업로드 완료',
+              processStatus: '자동 변환 완료',
+              errorMessage: '',
+              downloadStatus: 'feature CSV 준비 완료',
+              previewStatus: 'QC 완료',
+              previewMessage: `${result.features.length}개 1분 feature row 생성`,
+              previewVariables: ['HR','MAP','SBP','DBP','SpO2','PI','RR'],
+              previewData: null,
+              tagIds: duplicateIndex >= 0 ? (s.vitalFiles[duplicateIndex].tagIds || []) : [],
+              patientId: duplicateIndex >= 0 ? (s.vitalFiles[duplicateIndex].patientId || '') : '',
+              eventId: duplicateIndex >= 0 ? (s.vitalFiles[duplicateIndex].eventId || '') : ''
+            };
+            if (duplicateIndex >= 0) s.vitalFiles[duplicateIndex] = item;
+            else s.vitalFiles.unshift(item);
+            if (!Array.isArray(s.csvConversions)) s.csvConversions = [];
+            s.csvConversions.unshift({
+              id: uid('CSVCONV'),
+              sourceFile: file.name,
+              caseId: result.caseId,
+              status: '자동 변환 완료',
+              rowsRead: result.rowsRead,
+              featureRows: result.features.length,
+              columns: result.columns.length,
+              segmentCount: result.segmentCount,
+              createdAt: nowText(),
+              output: result.outputName
+            });
+            s.csvConversions = s.csvConversions.slice(0, 50);
+          });
+
+          renderAutoCsvQc(result, file.name);
+          addAudit('raw csv auto conversion', 'raw_csv', `${file.name} -> ${result.outputName}`);
+        } catch (error) {
+          console.error(error);
+          errors += 1;
+          rowsForTable.push({
+            name: file.name,
+            size: file.size,
+            caseId: makeCaseIdFromName(file.name, true),
+            status: '변환 오류',
+            featureRows: '-',
+            segmentCount: '-',
+            qc: '불가',
+            error: error.message || 'CSV 변환 중 오류'
+          });
+        }
+        renderAutoCsvUploadRows(rowsForTable);
+        setMetricText('#autoCsvConverted', `${converted}개`, converted ? '완료' : '진행');
+        setMetricText('#autoCsvQcDone', `${converted}개`, converted ? '완료' : '진행');
+        setMetricText('#autoCsvError', `${errors}개`, errors ? '확인' : '대기');
+      }
+
+      setProgressLocal(100);
+      setStatusLocal(`자동 변환 완료: ${converted}개 성공, ${errors}개 오류/차단`);
+      setTimeout(() => setProgressLocal(0), 900);
+      toast(`CSV 자동 변환 및 QC가 완료되었습니다. 성공 ${converted}개, 오류/차단 ${errors}개`);
+    }
+
+    function renderAutoCsvUploadRows(rows) {
+      if (!body) return;
+      if (!rows.length) {
+        setTableEmpty(body, 8, '아직 업로드된 CSV가 없습니다.', 'CSV 파일을 업로드하면 자동으로 변환 및 QC가 실행됩니다.');
+        return;
+      }
+      body.innerHTML = rows.map(row => `<tr>
+        <td>${escapeHtml(row.name)}</td>
+        <td>${formatBytes(row.size)}</td>
+        <td>${escapeHtml(row.caseId)}</td>
+        <td>${badge(row.status, row.status.includes('완료') ? 'green' : row.status.includes('오류') || row.status.includes('차단') ? 'red' : 'yellow')}</td>
+        <td>${escapeHtml(row.featureRows)}</td>
+        <td>${escapeHtml(row.segmentCount)}</td>
+        <td>${badge(row.qc, row.qc.includes('완료') ? 'teal' : 'gray')}</td>
+        <td>${escapeHtml(row.error)}</td>
+      </tr>`).join('');
+    }
+
+    function renderAutoCsvQc(result, fileName) {
+      if (qcSummary) {
+        qcSummary.innerHTML = `<dl class="kv"><dt>최근 파일</dt><dd>${escapeHtml(fileName)}</dd><dt>case_id</dt><dd>${escapeHtml(result.caseId)}</dd><dt>feature row</dt><dd>${result.features.length.toLocaleString()}행</dd><dt>segment</dt><dd>${result.segmentCount.toLocaleString()}개</dd><dt>컬럼</dt><dd>${result.columns.length.toLocaleString()}개</dd><dt>encoding</dt><dd>${escapeHtml(result.encoding)}</dd></dl>`;
+      }
+      renderSignalTrajectoryPanel(qcPanel, result.features, result.caseId, { title: '신호 궤적 QC', badge: '자동 QC 완료' });
+    }
+
+    renderSignalTrajectoryPanel(qcPanel, [], '', { title: '신호 궤적 QC', subtitle: 'CSV 업로드 후 자동 변환되면 HR, MAP, SpO2, RR 궤적이 표시됩니다.', emptyText: '아직 업로드된 CSV가 없습니다.', badge: '대기' });
+  }
+
+  function handleVitalFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const progress = $('.upload-zone .progress > i');
+    if (progress) progress.style.width = '18%';
+    const state = patchState(s => {
+      files.forEach(file => {
+        const isVital = file.name.toLowerCase().endsWith('.vital');
+        const isCsv = file.name.toLowerCase().endsWith('.csv');
+        const accepted = isVital || isCsv;
+        const duplicate = s.vitalFiles.some(v => v.name === file.name && v.size === file.size);
+        s.vitalFiles.unshift({
+          id: uid(isCsv ? 'CSVF' : 'VF'),
+          caseId: accepted ? makeCaseIdFromName(file.name, true) : uid('CASE').replace('CASE_', 'CASE-'),
+          name: file.name,
+          size: file.size,
+          sourceType: isCsv ? 'raw CSV' : isVital ? 'raw .vital' : 'unsupported',
+          uploadedBy: USER,
+          uploadedAt: nowText(),
+          uploadStatus: accepted && !duplicate ? '업로드 완료' : '오류',
+          processStatus: accepted && !duplicate ? (isCsv ? '변환 가능' : '서버 파서 대기') : '처리 제외',
+          errorMessage: !accepted ? '지원 형식 아님: .csv만 업로드 가능' : duplicate ? '동일 파일이 이미 등록됨' : '',
+          downloadStatus: accepted && !duplicate ? (isCsv ? '자동 변환 완료' : '준비 전') : '불가',
+          previewStatus: accepted && !duplicate ? (isCsv ? '자동 변환 완료' : '자동 QC 대기') : '프리뷰 불가',
+          previewMessage: accepted && !duplicate ? (isCsv ? '내보내기/CSV 변환 화면에서 바로 1분 feature와 QC 궤적을 생성할 수 있습니다.' : '파일 메타정보는 즉시 확인되었습니다. 서버 .vital 파서가 preview signal을 반환하면 그래프가 자동으로 표시됩니다.') : '지원하지 않는 파일은 프리뷰할 수 없습니다.',
+          previewVariables: accepted && !duplicate ? ['MAP','HR','SBP','DBP','SpO2','RR'] : [],
+          previewData: null,
+          tagIds: [],
+          patientId: '',
+          eventId: ''
+        });
+      });
+    });
+    addAudit('file upload', 'raw_file', `${files.length}개 파일 선택`);
+    renderVitalUpload(state);
+    let pct = 18;
+    const timer = setInterval(() => {
+      pct += 27;
+      if (progress) progress.style.width = `${Math.min(pct, 100)}%`;
+      if (pct >= 100) {
+        clearInterval(timer);
+        setTimeout(() => { if (progress) progress.style.width = '0%'; }, 700);
+        const nextState = patchState(s => {
+          s.vitalFiles.forEach(f => {
+            if (f.processStatus === '처리 대기') {
+              f.processStatus = '처리 완료';
+              f.downloadStatus = '준비 가능';
+              if (!f.previewData && f.previewStatus !== '프리뷰 불가') f.previewStatus = '메타 확인';
+            }
+          });
+        });
+        renderVitalUpload(nextState);
+        toast('Raw CSV 업로드 상태가 저장되었습니다.');
+      }
+    }, 180);
+  }
+
+  function renderVitalUpload(state = readState()) {
+    const body = cardByHeading('업로드 상태 목록')?.querySelector('tbody');
+    if (body) {
+      if (!state.vitalFiles.length) {
+        setTableEmpty(body, 9, '아직 선택된 raw CSV이 없습니다.', 'CSV 파일 선택 또는 드래그 앤 드롭으로 업로드 목록을 만들 수 있습니다.');
+      } else {
+        body.innerHTML = state.vitalFiles.map(f => `<tr>
+          <td><input type="checkbox" data-vital-id="${escapeHtml(f.id)}"></td>
+          <td>${escapeHtml(f.name)}</td>
+          <td>${formatBytes(f.size)}</td>
+          <td>${badge(f.uploadStatus, f.uploadStatus === '오류' ? 'red' : 'green')}</td>
+          <td>${badge(f.processStatus, f.processStatus === '처리 완료' ? 'teal' : f.processStatus === '처리 제외' ? 'gray' : 'yellow')}</td>
+          <td>${badge(f.previewStatus || '자동 QC 대기', previewTone(f.previewStatus))}</td>
+          <td>${escapeHtml(f.errorMessage || '-')}</td>
+          <td>${escapeHtml(f.downloadStatus || '준비 전')}</td>
+          <td><button class="btn ghost" data-qc-file="${escapeHtml(f.id)}">QC 보기</button></td>
+        </tr>`).join('');
+        $$('[data-qc-file]', body).forEach(btn => btn.addEventListener('click', () => {
+          const select = $('#qcFileSelect');
+          if (select) select.value = btn.dataset.qcFile;
+          renderVitalQcPreview();
+          document.querySelector('.qc-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }));
+      }
+    }
+    const completed = state.vitalFiles.filter(f => f.uploadStatus === '업로드 완료').length;
+    const errors = state.vitalFiles.filter(f => f.uploadStatus === '오류').length;
+    const pending = state.vitalFiles.filter(f => f.processStatus === '처리 대기').length;
+    const ready = state.vitalFiles.filter(f => f.downloadStatus === '준비 가능' || f.downloadStatus === '다운로드 목록 생성').length;
+    setMetricByLabel('업로드 완료', `${completed}개`, completed ? '완료' : '대기');
+    setMetricByLabel('업로드 오류', `${errors}개`, errors ? '확인' : '대기');
+    setMetricByLabel('처리 대기', `${pending}개`, pending ? '진행' : '대기');
+    setMetricByLabel('다운로드 준비', `${ready}개`, ready ? '가능' : '대기');
+    const dd = $$('.preview-card .kv dd');
+    if (dd[0]) dd[0].textContent = `${state.vitalFiles.length}개`;
+    if (dd[1]) dd[1].textContent = formatBytes(state.vitalFiles.reduce((sum, f) => sum + Number(f.size || 0), 0));
+    if (dd[2]) dd[2].textContent = `${errors}개`;
+    if (dd[3]) dd[3].textContent = `0개`;
+    renderVitalQcOptions(state);
+    renderVitalQcPreview(state);
+  }
+
+  function previewTone(status) {
+    if (status === '프리뷰 가능' || status === '메타 확인') return 'teal';
+    if (status === '자동 QC 대기' || status === '프리뷰 요청됨') return 'yellow';
+    if (status === '프리뷰 불가') return 'red';
+    return 'gray';
+  }
+
+  function renderVitalQcOptions(state = readState()) {
+    const select = $('#qcFileSelect');
+    if (!select) return;
+    const current = select.value;
+    const files = state.vitalFiles || [];
+    select.innerHTML = files.length
+      ? option('', '파일 선택') + files.map(f => option(f.id, `${f.name} · ${f.previewStatus || '자동 QC 대기'}`)).join('')
+      : option('', '업로드된 파일 없음');
+    if (current && files.some(f => f.id === current)) select.value = current;
+    else if (!select.value && files.length) select.value = files[0].id;
+  }
+
+  function renderVitalQcPreview(state = readState()) {
+    const card = $('.qc-card');
+    if (!card) return;
+    const fileId = $('#qcFileSelect')?.value || '';
+    const variable = $('#qcVariableSelect')?.value || 'MAP';
+    const windowMin = $('#qcWindowSelect')?.value || '30';
+    const file = (state.vitalFiles || []).find(f => f.id === fileId);
+    const summary = $('#qcSummary');
+    const chart = $('#qcChart');
+    if (!summary || !chart) return;
+    if (!file) {
+      summary.innerHTML = '<span>선택된 파일이 없습니다.</span>';
+      chart.innerHTML = '<div class="empty-state"><div><strong>QC 미리보기 없음</strong><span>raw CSV를 변환하면 QC 궤적이 표시됩니다. .vital은 서버 파서 연결 후 표시됩니다.</span></div></div>';
+      return;
+    }
+    const vars = Array.isArray(file.previewVariables) && file.previewVariables.length ? file.previewVariables.join(', ') : '파서 반환 전';
+    summary.innerHTML = `
+      ${badge(file.name, 'blue')}
+      ${badge(file.previewStatus || '프리뷰 미생성', previewTone(file.previewStatus))}
+      <span>크기 ${formatBytes(file.size)}</span>
+      <span>case_id ${escapeHtml(file.caseId || '-')}</span>
+      <span>사용 가능 변수: ${escapeHtml(vars)}</span>
+    `;
+    const data = extractPreviewSeries(file, variable, windowMin);
+    if (!data.length) {
+      const msg = file.previewMessage || '파일 메타정보는 표시되었습니다. 서버 .vital 파서가 preview signal을 반환하면 그래프가 자동으로 표시됩니다.';
+      chart.innerHTML = `<div class="empty-state"><div><strong>${escapeHtml(variable)} 신호 그래프 대기</strong><span>${escapeHtml(msg)}</span><br><span>파일명, 크기, case_id는 위에서 즉시 확인할 수 있습니다. 실제 파형/수치 preview는 백엔드 파서 연결 후 자동 표시됩니다.</span></div></div>`;
+      return;
+    }
+    chart.innerHTML = drawQcSvg(data, variable, file.name);
+  }
+
+  function extractPreviewSeries(file, variable, windowMin) {
+    const raw = file && file.previewData;
+    if (!raw) return [];
+    let arr = raw[variable] || raw[String(variable).toUpperCase()] || raw[String(variable).toLowerCase()];
+    if (!Array.isArray(arr)) return [];
+    let data = arr.map((d, i) => {
+      if (typeof d === 'number') return { minute: i, value: d };
+      return { minute: Number(d.minute ?? d.x ?? i), value: Number(d.value ?? d.y) };
+    }).filter(d => Number.isFinite(d.minute) && Number.isFinite(d.value));
+    if (windowMin !== 'all') {
+      const maxMin = Number(windowMin);
+      if (Number.isFinite(maxMin)) data = data.filter(d => d.minute <= maxMin);
+    }
+    return data;
+  }
+
+  function drawQcSvg(data, variable, fileName) {
+    const w = 820, h = 280, left = 54, right = 20, top = 36, bottom = 42;
+    const xs = data.map(d => d.minute), ys = data.map(d => d.value);
+    const xMin = Math.min(...xs), xMax = Math.max(...xs);
+    let yMin = Math.min(...ys), yMax = Math.max(...ys);
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+    const pad = (yMax - yMin) * 0.12;
+    yMin -= pad; yMax += pad;
+    const xScale = x => left + ((x - xMin) / Math.max(1, xMax - xMin)) * (w - left - right);
+    const yScale = y => top + (1 - ((y - yMin) / Math.max(1e-9, yMax - yMin))) * (h - top - bottom);
+    const path = data.map((d, i) => `${i ? 'L' : 'M'}${xScale(d.minute).toFixed(1)},${yScale(d.value).toFixed(1)}`).join(' ');
+    const yTicks = Array.from({ length: 5 }, (_, i) => yMin + (yMax - yMin) * i / 4);
+    const xTicks = Array.from({ length: 5 }, (_, i) => xMin + (xMax - xMin) * i / 4);
+    const dots = data.filter((_, i) => i % Math.ceil(data.length / 24) === 0).map(d => `<circle class="qc-dot" cx="${xScale(d.minute).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3.2"/>`).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${escapeHtml(variable)} QC preview">
+      <text class="qc-title" x="${left}" y="22">${escapeHtml(variable)} · 업로드 QC</text>
+      <text class="qc-axis-text" x="${w - right}" y="22" text-anchor="end">${escapeHtml(fileName)}</text>
+      ${yTicks.map(t => `<line class="qc-grid-line" x1="${left}" x2="${w - right}" y1="${yScale(t).toFixed(1)}" y2="${yScale(t).toFixed(1)}"/><text class="qc-axis-text" x="${left - 10}" y="${(yScale(t)+4).toFixed(1)}" text-anchor="end">${t.toFixed(1)}</text>`).join('')}
+      ${xTicks.map(t => `<text class="qc-axis-text" x="${xScale(t).toFixed(1)}" y="${h - 14}" text-anchor="middle">${Math.round(t)}분</text>`).join('')}
+      <line class="qc-grid-line" x1="${left}" x2="${left}" y1="${top}" y2="${h - bottom}"/>
+      <line class="qc-grid-line" x1="${left}" x2="${w - right}" y1="${h - bottom}" y2="${h - bottom}"/>
+      <path class="qc-line" d="${path}"/>
+      ${dots}
+    </svg>`;
+  }
+
+  function initVitalRegistry() {
+    populateRegistryFilters();
+    renderVitalRegistry();
+    const filterBtn = cardByHeading('파일 검색/필터')?.querySelector('button');
+    filterBtn?.addEventListener('click', renderVitalRegistry);
+    $$('.filters input, .filters select').forEach(el => el.addEventListener('input', renderVitalRegistry));
+  }
+
+  function populateRegistryFilters() {
+    const selects = $$('.filters select');
+    const state = readState();
+    if (selects[1]) {
+      selects[1].innerHTML = option('', '전체 태그') + state.tags.map(t => option(t.id, t.name)).join('');
+    }
+  }
+
+  function renderVitalRegistry() {
+    const state = readState();
+    const table = $('.table-wrap.registry table');
+    if (!table) return;
+    const body = $('tbody', table);
+    const filters = $$('.filters input, .filters select');
+    const query = filters[0]?.value?.trim().toLowerCase() || '';
+    const tagId = filters[2]?.value || '';
+    const status = filters[3]?.value || '';
+    let files = state.vitalFiles.slice();
+    if (query) files = files.filter(f => [f.name, f.caseId, f.id].some(v => String(v || '').toLowerCase().includes(query)));
+    if (tagId) files = files.filter(f => (f.tagIds || []).includes(tagId));
+    if (status && !status.includes('전체')) {
+      files = files.filter(f => {
+        if (status === '처리 완료') return f.processStatus === '처리 완료';
+        if (status === '미처리') return f.processStatus !== '처리 완료';
+        if (status === '미매칭') return !f.patientId;
+        if (status === '미태그') return !(f.tagIds || []).length;
+        return true;
+      });
+    }
+    if (!files.length) return setTableEmpty(body, 13, '표시할 Vital 파일이 없습니다.', '업로드하거나 필터 조건을 변경하세요.');
+    body.innerHTML = files.map(f => {
+      const tags = (f.tagIds || []).map(id => state.tags.find(t => t.id === id)?.name).filter(Boolean);
+      return `<tr>
+        <td>${escapeHtml(f.id)}</td><td>${escapeHtml(f.caseId)}</td><td>${escapeHtml(f.name)}</td><td>${formatBytes(f.size)}</td>
+        <td>${escapeHtml(f.uploadedBy || USER)}</td><td>${escapeHtml(f.uploadedAt)}</td><td>${escapeHtml(f.patientId || '미매칭')}</td><td>${escapeHtml(f.observationId || f.timepoint || f.eventId || '-')}</td>
+        <td>${badge(f.patientId ? '매칭됨' : '미매칭', f.patientId ? 'green' : 'yellow')}</td><td>${badge(f.processStatus || '미처리', f.processStatus === '처리 완료' ? 'teal' : 'gray')}</td>
+        <td>${tags.length ? tags.map(t => badge(t, 'blue')).join(' ') : badge('미태그', 'gray')}</td><td>${escapeHtml(f.downloadStatus || '준비 전')}</td>
+        <td><button class="btn ghost" data-send-tag="${escapeHtml(f.id)}">태그 부여</button> <button class="btn ghost" data-delete-vital="${escapeHtml(f.id)}">삭제</button></td>
+      </tr>`;
+    }).join('');
+    $$('[data-delete-vital]', body).forEach(btn => btn.addEventListener('click', () => {
+      if (!confirm('이 Vital 파일 메타데이터를 등록대장에서 삭제할까요?')) return;
+      patchState(s => { s.vitalFiles = s.vitalFiles.filter(f => f.id !== btn.dataset.deleteVital); });
+      renderVitalRegistry();
+      toast('Vital 파일 메타데이터를 삭제했습니다.');
+    }));
+    $$('[data-send-tag]', body).forEach(btn => btn.addEventListener('click', () => {
+      sessionStorage.setItem('excite_selected_target_id', btn.dataset.sendTag);
+      location.href = 'tag-assignment.html';
+    }));
+  }
+
+
+  function ensure2026EcmoTemplate() {
+    const exists = readState().tags.some(t => t.name === '2026_ECMO_Registry');
+    if (exists) return toast('이미 2026_ECMO_Registry 태그 구조가 있습니다.', 'yellow');
+    const tagId = uid('TAG');
+    const axes = [
+      { name: 'ECMO episode', level: '연구 이벤트 단위', values: ['ECMO_01','ECMO_02'] },
+      { name: 'Timepoint', level: 'Day/visit 단위', values: ['Pre ECMO','Intra ECMO','4h','24h','Post ABGA 24h','Outcome','Follow-up'] },
+      { name: 'Group', level: '환자 단위', values: ['Control','Treatment','VA-ECMO','VV-ECMO','Survivor','Non-survivor','CRRT yes','CRRT no','CPR yes','CPR no'] },
+      { name: 'Clinical section', level: '관측값 단위', values: ['Patient master','Pre ECMO lab','Intra ECMO','Ventilator','Outcome','Diagnosis','Past history','Microbiology','Perfusionist file'] },
+      { name: 'ECMO mode', level: '연구 이벤트 단위', values: ['VA','VV','VAV','Other'] },
+      { name: 'Specimen / culture', level: '관측값 단위', values: ['Blood','Urine','Respiratory','Wound','Other'] }
+    ];
+    const presetVariables = [
+      ['gender','환자 기본정보','범주형',''], ['birth_date_or_year','환자 기본정보','날짜/시간',''], ['height','환자 기본정보','숫자','cm'], ['weight','환자 기본정보','숫자','kg'],
+      ['ecmo_start_datetime','ECMO episode','날짜/시간',''], ['ecmo_end_datetime','ECMO episode','날짜/시간',''], ['ecmo_duration_hours','ECMO episode','숫자','h'], ['ecmo_indication','ECMO episode','범주형',''], ['ecmo_type','ECMO episode','범주형',''], ['ecmo_mode','ECMO episode','범주형',''], ['ecmo_location','ECMO episode','범주형',''],
+      ['PH','lab','숫자',''], ['PCO2','lab','숫자','mmHg'], ['PO2','lab','숫자','mmHg'], ['HCO3','lab','숫자','mmol/L'], ['SaO2','lab','숫자','%'], ['Lactate','lab','숫자','mmol/L'], ['Creatinine','lab','숫자','mg/dL'], ['Hgb','lab','숫자','g/dL'], ['Plt','lab','숫자','10^3/uL'], ['INR','lab','숫자',''], ['APTT','lab','숫자','sec'], ['AST','lab','숫자','U/L'], ['ALT','lab','숫자','U/L'], ['Bilirubin','lab','숫자','mg/dL'], ['Albumin','lab','숫자','g/dL'], ['CRP','lab','숫자','mg/dL'], ['ESR','lab','숫자','mm/h'], ['proBNP','lab','숫자','pg/mL'], ['Myoglobin','lab','숫자',''], ['CK-MB','lab','숫자',''], ['Troponin I','lab','숫자',''], ['Troponin T','lab','숫자',''],
+      ['GCS','intra_ecmo','숫자',''], ['pump_flow','intra_ecmo','숫자','L/min'], ['RPM','intra_ecmo','숫자','rpm'], ['ECMO_FiO2','intra_ecmo','숫자',''], ['sweep_gas','intra_ecmo','숫자',''],
+      ['SBP','ventilator','숫자','mmHg'], ['DBP','ventilator','숫자','mmHg'], ['mean_bp','ventilator','숫자','mmHg'], ['PR','ventilator','숫자','/min'], ['vent_mode','ventilator','범주형',''], ['FiO2','ventilator','숫자',''], ['RR','ventilator','숫자','/min'], ['PEEP','ventilator','숫자','cmH2O'], ['flow_rate','ventilator','숫자','L/min'], ['O2','ventilator','숫자',''],
+      ['discharge_alive','outcome','예/아니오',''], ['icu_admission_datetime','outcome','날짜/시간',''], ['icu_discharge_datetime','outcome','날짜/시간',''], ['hospital_discharge_datetime','outcome','날짜/시간',''], ['death_datetime','outcome','날짜/시간',''], ['creatinine_28d','outcome','숫자','mg/dL'], ['last_follow_up_date','outcome','날짜/시간',''],
+      ['diagnosis_name','diagnosis','자유 텍스트',''], ['past_history_hypertension','past_history','예/아니오',''], ['past_history_diabetes','past_history','예/아니오',''], ['past_history_cancer','past_history','예/아니오',''], ['chief_complaint_admission_reason','diagnosis','자유 텍스트',''],
+      ['microbiology_sample_datetime','microbiology','날짜/시간',''], ['organism_name','microbiology','자유 텍스트',''], ['microbiology_result','microbiology','범주형',''], ['susceptibility','microbiology','자유 텍스트',''],
+      ['operator','perfusionist_file','자유 텍스트',''], ['assistant','perfusionist_file','자유 텍스트',''], ['perfusionist','perfusionist_file','자유 텍스트',''], ['circuit_change_note','perfusionist_file','자유 텍스트',''], ['weaning','perfusionist_file','예/아니오','']
+    ];
+    patchState(s => {
+      s.tags.unshift({ id: tagId, name: '2026_ECMO_Registry', status: '준비 중', color: '#0b8f8a', description: '2026 총정리본 기반 ECMO 환자 연구용 태그. 환자 마스터는 고정하고, ECMO episode·timepoint·group·clinical section별 반복 자료를 연결합니다.', irb: '', matchUnit: '복합 단위', createdBy: USER, createdAt: nowText(), updatedAt: nowText() });
+      axes.forEach(ax => {
+        s.axes.push({ id: uid('AXIS'), tagId, name: ax.name, inputMode: '드롭다운 + 관리자 새 값 추가', level: ax.level, values: ax.values.map(v => ({ id: uid('VAL'), label: v, synonyms: [] })), createdAt: nowText() });
+      });
+      presetVariables.forEach(([name, kind, type, unit]) => {
+        s.variables.push({ id: uid('VAR'), tagId, tagName: '2026_ECMO_Registry', categories: [kind], name, kind, type, unit, valueRule: '직접 입력 허용', level: kind === '환자 기본정보' ? '환자 단위' : '연구 이벤트/관측값 단위', matching: '가명 연구대상자 ID + ECMO episode + timepoint', internal: {}, rule: '2026 총정리본 sheet 구조 기반 preset', status: '저장 대기', createdAt: nowText() });
+      });
+      s.audit.unshift({ id: uid('AUDIT'), time: nowText(), user: USER, action: 'preset tag template', target: 'research_tag', description: '2026 총정리본 기반 연구 태그/분류축/변수 preset 생성', status: 'success' });
+    });
+    renderTagManager();
+    toast('2026 총정리본 기반 연구 태그 구조를 생성했습니다.');
+  }
+
+
+  function ensureTrajectoryComparisonTemplate() {
+    const templateTagName = 'ECMO_NonECMO_Trajectory';
+    const templateAxes = [
+      { name: '비교군', level: '환자 단위', values: ['ECMO', 'Non-ECMO', 'Matched Non-ECMO'] },
+      { name: '기준시점', level: '자료묶음 단위', values: ['ECMO start', 'ICU admission', 'Procedure start', 'Pseudo-index time'] },
+      { name: '관찰구간', level: '관찰구간/Timepoint 단위', values: ['Pre-index', 'During ECMO', 'Post-index', 'Follow-up', 'Single observation'] },
+      { name: 'Timepoint', level: '관찰구간/Timepoint 단위', values: ['Pre', '4h', '24h', 'Day 1', 'Day 2', 'Day 3', 'Day 7'] },
+      { name: '측정밀도', level: '관측값 단위', values: ['Repeated trajectory', 'Sparse observation', 'Single observation'] },
+      { name: '자료영역', level: '관측값 단위', values: ['Vital', 'Lab', 'Microbiology', 'Ventilator', 'Medication', 'Outcome'] },
+      { name: '분석비교', level: '자료묶음 단위', values: ['Within ECMO pre-post trajectory', 'ECMO vs Non-ECMO trajectory', 'Group × time interaction', 'Cross-sectional comparison'] }
+    ];
+    let created = false;
+    patchState(s => {
+      let tag = s.tags.find(t => t.name === templateTagName);
+      if (!tag) {
+        tag = { id: uid('TAG'), name: templateTagName, status: '준비 중', color: '#1d5d9b', description: 'ECMO군과 Non-ECMO군의 시간 궤적을 비교하기 위한 예시 연구 태그입니다. 일반 태그이므로 수정하거나 삭제할 수 있습니다.', irb: '', matchUnit: '복합 단위', createdBy: USER, createdAt: nowText(), updatedAt: nowText() };
+        s.tags.unshift(tag);
+        created = true;
+      }
+      templateAxes.forEach(ax => {
+        let axis = s.axes.find(a => a.tagId === tag.id && a.name.toLowerCase() === ax.name.toLowerCase());
+        if (!axis) {
+          axis = { id: uid('AXIS'), tagId: tag.id, name: ax.name, inputMode: '드롭다운 + 관리자 새 값 추가', level: ax.level, values: [], createdAt: nowText() };
+          s.axes.push(axis);
+        }
+        axis.level = ax.level;
+        axis.inputMode = '드롭다운 + 관리자 새 값 추가';
+        ax.values.forEach(label => {
+          if (!axis.values.some(v => v.label.toLowerCase() === label.toLowerCase())) axis.values.push({ id: uid('VAL'), label, synonyms: [] });
+        });
+      });
+      s.audit.unshift({ id: uid('AUDIT'), time: nowText(), user: USER, action: 'trajectory example tag', target: 'research_tag', description: 'ECMO / Non-ECMO 궤적 비교 예시 태그 생성/갱신', status: 'success' });
+    });
+    renderTagManager();
+    toast(created ? '예시 연구 태그를 생성했습니다. 목록에서 수정/삭제할 수 있습니다.' : '이미 있는 예시 태그의 분류축을 갱신했습니다.');
+  }
+
+  function initTagManager() {
+    const tagCard = cardByHeading('새 연구 태그 만들기');
+    const axisCard = cardByHeading('연구 내 분류축 설계') || cardByHeading('태그 내부 분류축 설계');
+    if (!tagCard || !axisCard) return;
+
+    ensureAxisTagSelect(axisCard);
+    const duplicateBtn = $$('button', tagCard).find(b => b.textContent.includes('중복'));
+    const saveTagBtn = $$('button', tagCard).find(b => b.textContent.includes('연구 태그 저장'));
+    const addAxisBtn = $$('button', axisCard).find(b => b.textContent.includes('분류축 추가'));
+    const saveValueBtn = $$('button', axisCard).find(b => b.textContent.includes('표준값 저장'));
+    const presetBtn = $('#seed2026TemplateBtn');
+    const trajectoryPresetBtn = $('#seedTrajectoryTemplateBtn');
+    [duplicateBtn, saveTagBtn, addAxisBtn, saveValueBtn, presetBtn, trajectoryPresetBtn].forEach(removeDisabledAction);
+
+    const colorPicker = $('[data-role="tag-color"]', tagCard);
+    const colorText = $('[data-role="tag-color-text"]', tagCard);
+    colorPicker?.addEventListener('input', () => { if (colorText) colorText.value = colorPicker.value; });
+    colorText?.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value.trim()) && colorPicker) colorPicker.value = colorText.value.trim(); });
+
+    duplicateBtn?.addEventListener('click', () => {
+      const name = $('input', tagCard)?.value.trim();
+      if (!name) return toast('검사할 태그명을 입력하세요.', 'gray');
+      const exists = readState().tags.some(t => t.name.toLowerCase() === name.toLowerCase());
+      toast(exists ? '이미 같은 태그명이 있습니다.' : '사용 가능한 태그명입니다.', exists ? 'yellow' : 'teal');
+    });
+
+    saveTagBtn?.addEventListener('click', () => saveTag(tagCard));
+    addAxisBtn?.addEventListener('click', () => saveAxis(axisCard, false));
+    saveValueBtn?.addEventListener('click', () => saveAxis(axisCard, true));
+    presetBtn?.addEventListener('click', ensure2026EcmoTemplate);
+    trajectoryPresetBtn?.addEventListener('click', ensureTrajectoryComparisonTemplate);
+
+    renderTagManager();
+  }
+
+  function ensureAxisTagSelect(axisCard) {
+    if ($('[data-role="axis-tag-select"]', axisCard)) return;
+    const firstGrid = $('.grid.three', axisCard);
+    const wrap = document.createElement('div');
+    wrap.className = 'field';
+    wrap.innerHTML = '<label>적용할 연구 태그</label><select data-role="axis-tag-select"><option>등록된 연구 태그가 없습니다.</option></select>';
+    firstGrid?.prepend(wrap);
+  }
+
+  function saveTag(tagCard) {
+    const desc = $('textarea', tagCard)?.value.trim() || '';
+    const name = $('[data-role="tag-name"]', tagCard)?.value.trim() || $$('input', tagCard)[0]?.value.trim();
+    if (!name) return toast('태그명을 입력하세요.', 'gray');
+    const status = $('[data-role="tag-status"]', tagCard)?.value || '준비 중';
+    const color = $('[data-role="tag-color-text"]', tagCard)?.value.trim() || $('[data-role="tag-color"]', tagCard)?.value || '#0b8f8a';
+    const irb = $('[data-role="tag-irb"]', tagCard)?.value.trim() || '';
+    const matchUnit = $('[data-role="tag-match-unit"]', tagCard)?.value || '환자 단위';
+    const editId = tagCard.dataset.editId;
+
+    const currentState = readState();
+    if (!editId && currentState.tags.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+      return toast('이미 같은 태그명이 있습니다.', 'yellow');
+    }
+    const state = patchState(s => {
+      if (editId) {
+        const target = s.tags.find(t => t.id === editId);
+        if (target) Object.assign(target, { name, status, color, description: desc, irb, matchUnit, updatedAt: nowText() });
+      } else {
+        s.tags.unshift({ id: uid('TAG'), name, status, color, description: desc, irb, matchUnit, createdBy: USER, createdAt: nowText(), updatedAt: nowText() });
+      }
+    });
+    delete tagCard.dataset.editId;
+    $$('input, textarea', tagCard).forEach(el => {
+      if (el.type === 'color') el.value = '#0b8f8a';
+      else if (el.dataset.role === 'tag-color-text') el.value = '#0b8f8a';
+      else el.value = '';
+    });
+    renderTagManager(state);
+    addAudit(editId ? 'tag update' : 'tag creation', 'research_tag', name);
+    toast(editId ? '연구 태그를 수정했습니다.' : '연구 태그를 저장했습니다.');
+  }
+
+  function saveAxis(axisCard, valueOnly) {
+    const tagId = $('[data-role="axis-tag-select"]', axisCard)?.value;
+    if (!tagId) return toast('적용할 연구 태그를 먼저 선택하세요.', 'gray');
+    const grids = $$('.grid', axisCard);
+    const firstInputs = $$('input', grids[0] || axisCard);
+    const selects = $$('select', grids[0] || axisCard);
+    const secondInputs = $$('input', grids[1] || axisCard);
+    const directInputs = $$('.direct-entry input', axisCard);
+
+    const axisName = firstInputs[0]?.value.trim() || directInputs[0]?.value.trim();
+    const inputMode = selects[1]?.value || '드롭다운만 허용';
+    const level = selects[2]?.value || '연구 이벤트 단위';
+    const standardValue = secondInputs[0]?.value.trim() || directInputs[1]?.value.trim();
+    const synonyms = (secondInputs[1]?.value.trim() || directInputs[2]?.value.trim() || '').split(',').map(v => v.trim()).filter(Boolean);
+    if (!axisName) return toast('분류축 이름을 입력하세요.', 'gray');
+    if (valueOnly && !standardValue) return toast('표준 분류값을 입력하세요.', 'gray');
+
+    const state = patchState(s => {
+      let axis = s.axes.find(a => a.tagId === tagId && a.name.toLowerCase() === axisName.toLowerCase());
+      if (!axis) {
+        axis = { id: uid('AXIS'), tagId, name: axisName, inputMode, level, values: [], createdAt: nowText() };
+        s.axes.unshift(axis);
+      }
+      axis.inputMode = inputMode;
+      axis.level = level;
+      if (standardValue && !axis.values.some(v => v.label.toLowerCase() === standardValue.toLowerCase())) {
+        axis.values.push({ id: uid('VAL'), label: standardValue, synonyms });
+      }
+    });
+    $$('input', axisCard).forEach(el => el.value = '');
+    renderTagManager(state);
+    addAudit('tag vocabulary update', 'tag_axis', axisName);
+    toast(valueOnly ? '표준값을 저장했습니다.' : '분류축을 추가했습니다.');
+  }
+
+  function renderTagManager(state = readState()) {
+    fillTagSelect($('[data-role="axis-tag-select"]'), '태그를 먼저 생성하세요.');
+    setMetricByLabel('활성 연구 태그', `${state.tags.length}개`, state.tags.length ? '등록됨' : '대기');
+    setMetricByLabel('연구 내 분류축', `${state.axes.length}개`, state.axes.length ? '등록됨' : '대기');
+    const valueCount = state.axes.reduce((sum, a) => sum + (a.values?.length || 0), 0);
+    setMetricByLabel('표준 분류값', `${valueCount}개`, valueCount ? '등록됨' : '대기');
+    setMetricByLabel('미정리 자유입력값', `0개`, '대기');
+
+    const tagBody = cardByHeading('연구 태그 목록')?.querySelector('tbody');
+    if (tagBody) {
+      if (!state.tags.length) setTableEmpty(tagBody, 9, '아직 생성된 연구 태그가 없습니다.', '연구를 구분할 큰 태그를 만든 뒤 내부 분류축을 설계합니다.');
+      else tagBody.innerHTML = state.tags.map(t => {
+        const axes = state.axes.filter(a => a.tagId === t.id);
+        const vitalCount = state.vitalFiles.filter(f => (f.tagIds || []).includes(t.id)).length;
+        const subjectCount = state.studyPatients.filter(sp => sp.tagId === t.id).length;
+        return `<tr><td>${tagBadge(t)}</td><td>${colorSwatch(t.color)}</td><td>${escapeHtml(t.description || '-')}</td><td>${badge(t.status || '준비 중', 'gray')}</td><td>${subjectCount}명</td><td>${vitalCount}개</td><td>${axes.map(a => escapeHtml(a.name)).join(', ') || '-'}</td><td>${escapeHtml(t.updatedAt || t.createdAt)}</td><td><button class="btn ghost" data-edit-tag="${t.id}">수정</button> <button class="btn ghost" data-delete-tag="${t.id}">삭제</button></td></tr>`;
+      }).join('');
+    }
+    const axisBody = (cardByHeading('연구 내 분류축 / 표준값 목록') || cardByHeading('내부 분류축 / 표준값 목록'))?.querySelector('tbody');
+    if (axisBody) {
+      const rows = state.axes.flatMap(a => {
+        const tag = state.tags.find(t => t.id === a.tagId);
+        if (!a.values?.length) return [`<tr><td>${escapeHtml(tag?.name || '-')}</td><td>${escapeHtml(a.name)}</td><td>-</td><td>-</td><td>${escapeHtml(a.level)}</td><td>${escapeHtml(a.inputMode)}</td><td><button class="btn ghost" data-delete-axis="${a.id}">삭제</button></td></tr>`];
+        return a.values.map(v => `<tr><td>${escapeHtml(tag?.name || '-')}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(v.label)}</td><td>${escapeHtml((v.synonyms || []).join(', ') || '-')}</td><td>${escapeHtml(a.level)}</td><td>${escapeHtml(a.inputMode)}</td><td><button class="btn ghost" data-delete-axis="${a.id}">삭제</button></td></tr>`);
+      });
+      axisBody.innerHTML = rows.join('') || `<tr class="empty-row"><td colspan="7"><strong>아직 등록된 연구 내 분류축이 없습니다.</strong><br><span>표준값을 정의하면 이곳에 표시됩니다.</span></td></tr>`;
+    }
+    bindTagManagerActions();
+  }
+
+  function bindTagManagerActions() {
+    const tagCard = cardByHeading('새 연구 태그 만들기');
+    $$('[data-edit-tag]').forEach(btn => btn.addEventListener('click', () => {
+      const state = readState();
+      const t = state.tags.find(x => x.id === btn.dataset.editTag);
+      if (!t || !tagCard) return;
+      const inputs = $$('input', tagCard);
+      const color = normalizeTagColor(t.color);
+      const nameInput = $('[data-role="tag-name"]', tagCard) || inputs[0];
+      if (nameInput) nameInput.value = t.name || '';
+      if ($('[data-role="tag-status"]', tagCard)) $('[data-role="tag-status"]', tagCard).value = t.status || '준비 중';
+      if ($('[data-role="tag-color"]', tagCard)) $('[data-role="tag-color"]', tagCard).value = color;
+      if ($('[data-role="tag-color-text"]', tagCard)) $('[data-role="tag-color-text"]', tagCard).value = color;
+      if ($('textarea', tagCard)) $('textarea', tagCard).value = t.description || '';
+      if ($('[data-role="tag-irb"]', tagCard)) $('[data-role="tag-irb"]', tagCard).value = t.irb || '';
+      if ($('[data-role="tag-match-unit"]', tagCard)) $('[data-role="tag-match-unit"]', tagCard).value = t.matchUnit || '환자 단위';
+      tagCard.dataset.editId = t.id;
+      toast('수정할 태그 정보를 위 입력칸에 불러왔습니다.');
+      tagCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+    $$('[data-delete-tag]').forEach(btn => btn.addEventListener('click', () => {
+      if (!confirm('이 연구 태그와 연결된 내부 분류축을 삭제할까요?')) return;
+      patchState(s => {
+        s.tags = s.tags.filter(t => t.id !== btn.dataset.deleteTag);
+        s.axes = s.axes.filter(a => a.tagId !== btn.dataset.deleteTag);
+        s.vitalFiles.forEach(f => f.tagIds = (f.tagIds || []).filter(id => id !== btn.dataset.deleteTag));
+      });
+      renderTagManager();
+      toast('연구 태그를 삭제했습니다.');
+    }));
+    $$('[data-delete-axis]').forEach(btn => btn.addEventListener('click', () => {
+      if (!confirm('이 연구 내 분류축을 삭제할까요?')) return;
+      patchState(s => { s.axes = s.axes.filter(a => a.id !== btn.dataset.deleteAxis); });
+      renderTagManager();
+      toast('연구 내 분류축을 삭제했습니다.');
+    }));
+  }
+
+
+  function savePatientMaster() {
+    const card = cardByHeading('고정 환자 정보 등록');
+    if (!card) return;
+    const inputs = $$('input', card);
+    const selects = $$('select', card);
+    const registrationNo = inputs[0]?.value.trim();
+    const pseudoId = inputs[1]?.value.trim() || (registrationNo ? `P${registrationNo.slice(-4)}` : '');
+    if (!registrationNo && !pseudoId) return toast('등록번호 또는 가명 연구대상자 ID를 입력하세요.', 'gray');
+    const patient = {
+      id: uid('PAT'), registrationNo, pseudoId,
+      sex: selects[0]?.value || '', birthYear: inputs[2]?.value.trim() || '',
+      height: inputs[3]?.value.trim() || '', weight: inputs[4]?.value.trim() || '',
+      note: $('textarea', card)?.value.trim() || '', createdAt: nowText()
+    };
+    patchState(s => {
+      const exists = s.patients.find(p => (registrationNo && p.registrationNo === registrationNo) || (pseudoId && p.pseudoId === pseudoId));
+      if (exists) Object.assign(exists, patient, { id: exists.id, updatedAt: nowText() });
+      else s.patients.unshift(patient);
+    });
+    $$('input, textarea', card).forEach(el => el.value = '');
+    renderPatientMaster();
+    renderStudyPatientAssignment();
+    addAudit('patient master save', 'patient', pseudoId || registrationNo);
+    toast('고정 환자 정보를 저장했습니다.');
+  }
+
+  function renderPatientMaster(state = readState()) {
+    const body = $('#patientMasterBody');
+    if (!body) return;
+    if (!state.patients.length) return setTableEmpty(body, 7, '아직 등록된 환자 정보가 없습니다.', '환자 번호/가명 ID는 연구와 관계없이 고정되는 master 정보입니다.');
+    body.innerHTML = state.patients.map(p => `<tr><td>${escapeHtml(p.pseudoId || '-')}</td><td>${escapeHtml(p.registrationNo ? '****' + p.registrationNo.slice(-4) : '-')}</td><td>${escapeHtml(p.sex || '-')}</td><td>${escapeHtml(p.birthYear || '-')}</td><td>${escapeHtml(p.height || '-')}</td><td>${escapeHtml(p.weight || '-')}</td><td><button class="btn ghost" data-delete-patient="${escapeHtml(p.id)}">삭제</button></td></tr>`).join('');
+    $$('[data-delete-patient]', body).forEach(btn => btn.addEventListener('click', () => {
+      patchState(s => { s.patients = s.patients.filter(p => p.id !== btn.dataset.deletePatient); s.studyPatients = s.studyPatients.filter(x => x.patientId !== btn.dataset.deletePatient); });
+      renderPatientMaster(); renderStudyPatientAssignment(); toast('환자 master 정보를 삭제했습니다.');
+    }));
+    setMetricByLabel('등록된 환자 master', `${state.patients.length}명`, state.patients.length ? '등록됨' : '대기');
+  }
+
+  function renderStudyPatientAssignment(state = readState()) {
+    const body = $('#studyPatientBody');
+    if (!body) return;
+    const tagId = cardByHeading('연구 태그 선택')?.querySelector('select')?.value || '';
+    if (!state.patients.length) return setTableEmpty(body, 6, '배정할 환자 master가 없습니다.', '먼저 위에서 고정 환자 정보를 등록하세요.');
+    body.innerHTML = state.patients.map(p => {
+      const assigned = state.studyPatients.some(sp => sp.tagId === tagId && sp.patientId === p.id);
+      return `<tr><td><input type="checkbox" data-study-patient="${escapeHtml(p.id)}" ${assigned ? 'checked' : ''}></td><td>${escapeHtml(p.pseudoId || '-')}</td><td>${escapeHtml(p.registrationNo ? '****' + p.registrationNo.slice(-4) : '-')}</td><td>${escapeHtml(p.sex || '-')}</td><td>${escapeHtml(p.birthYear || '-')}</td><td>${assigned ? badge('배정됨','green') : badge('미배정','gray')}</td></tr>`;
+    }).join('');
+  }
+
+  function saveStudyPatients() {
+    const tagId = cardByHeading('연구 태그 선택')?.querySelector('select')?.value || '';
+    const stateBefore = readState();
+    const tag = stateBefore.tags.find(t => t.id === tagId);
+    if (!tag) return toast('연구 태그를 먼저 선택하세요.', 'gray');
+    const selected = $$('[data-study-patient]:checked').map(x => x.dataset.studyPatient);
+    patchState(s => {
+      s.studyPatients = s.studyPatients.filter(sp => sp.tagId !== tagId);
+      selected.forEach(pid => s.studyPatients.push({ id: uid('SP'), tagId, tagName: tag.name, patientId: pid, assignedAt: nowText(), assignedBy: USER }));
+    });
+    renderStudyPatientAssignment();
+    setMetricByLabel('선택된 대상자', `${selected.length}명`, selected.length ? '배정됨' : '대기');
+    addAudit('study patient assignment', 'patient', `${tag.name}: ${selected.length}명`);
+    toast('연구 태그에 대상자를 배정했습니다.');
+  }
+
+  function initPatientUpload() {
+    const tagSelect = cardByHeading('연구 태그 선택')?.querySelector('select');
+    fillTagSelect(tagSelect, '등록된 연구 태그가 없습니다. 먼저 태그를 생성하세요.');
+    tagSelect?.addEventListener('change', () => { populatePatientInternalSelects(tagSelect.value); renderStudyPatientAssignment(); renderVariableLibrary(); });
+    populatePatientInternalSelects(tagSelect?.value || '');
+    const patientSaveBtn = $('#patientMasterSaveBtn');
+    const studySaveBtn = $('#studyPatientSaveBtn');
+    [patientSaveBtn, studySaveBtn].forEach(removeDisabledAction);
+    patientSaveBtn?.addEventListener('click', savePatientMaster);
+    studySaveBtn?.addEventListener('click', saveStudyPatients);
+    renderPatientMaster();
+    renderStudyPatientAssignment();
+
+    const addBtn = cardByHeading('입력할 자료 항목 직접 고르기')?.querySelector('button');
+    removeDisabledAction(addBtn);
+    addBtn?.addEventListener('click', () => addClinicalVariable());
+
+    const variableSaveBtn = $('#variableSaveBtn');
+    const variableResetBtn = $('#variableResetBtn');
+    variableSaveBtn?.addEventListener('click', () => saveVariableDefinition());
+    variableResetBtn?.addEventListener('click', () => resetVariableForm());
+
+    renderVariableLibrary();
+    renderClinicalVariables();
+  }
+
+  function populatePatientInternalSelects(tagId) {
+    const card = cardByHeading('연구 내 분류값 선택') || cardByHeading('태그 안에서 구분값 선택');
+    if (!card) return;
+    const selects = $$('select', card);
+    if (selects[0]) selects[0].innerHTML = axisValueOptions(tagId, ['관찰구간', 'timepoint', 'day', 'visit', '시간', '방문'], '등록된 관찰구간/Timepoint 없음');
+    if (selects[1]) selects[1].innerHTML = axisValueOptions(tagId, ['비교군', 'group', '군', '그룹', 'cohort'], '등록된 비교군 없음');
+    if (selects[2]) selects[2].innerHTML = axisValueOptions(tagId, ['자료영역', 'stage', '상태', 'outcome', 'domain', 'section'], '등록된 자료영역/상태 없음');
+  }
+
+
+  function resetVariableForm() {
+    ['newVarName', 'newVarUnit'].forEach(id => {
+      const el = $('#' + id);
+      if (el) el.value = '';
+    });
+    const type = $('#newVarType');
+    if (type) type.value = '숫자';
+  }
+
+  function saveVariableDefinition() {
+    const tagSelect = cardByHeading('연구 태그 선택')?.querySelector('select');
+    const tagId = tagSelect?.value || '';
+    const tag = readState().tags.find(t => t.id === tagId);
+    const name = ($('#newVarName')?.value || '').trim();
+    const type = $('#newVarType')?.value || '숫자';
+    const unit = ($('#newVarUnit')?.value || '').trim();
+    const valueRule = '직접 입력 허용';
+    const level = '분류값 연결 전';
+    const description = '';
+
+    if (!name) {
+      toast('저장할 변수명을 입력하세요.', 'yellow');
+      return;
+    }
+
+    const state = patchState(s => {
+      const exists = (s.variableDefinitions || []).find(v =>
+        (v.name || '').toLowerCase() === name.toLowerCase() && (v.tagId || '') === tagId
+      );
+      if (exists) {
+        exists.type = type;
+        exists.unit = unit;
+        exists.valueRule = valueRule;
+        exists.level = level;
+        exists.description = description;
+        exists.tagName = tag?.name || '공통 변수';
+        exists.updatedAt = nowText();
+      } else {
+        s.variableDefinitions = s.variableDefinitions || [];
+        s.variableDefinitions.unshift({
+          id: uid('VDEF'),
+          tagId,
+          tagName: tag?.name || '공통 변수',
+          name,
+          type,
+          unit,
+          valueRule,
+          level,
+          description,
+          createdAt: nowText(),
+          updatedAt: nowText()
+        });
+      }
+    });
+
+    renderVariableLibrary(state);
+    addAudit('variable definition save', 'variable', `${name} 변수 사전 저장`);
+    toast('변수를 저장했습니다. 계속 추가할 수 있습니다.');
+    resetVariableForm();
+    $('#newVarName')?.focus();
+  }
+
+  function renderVariableLibrary(state = readState()) {
+    const body = $('#variableLibraryBody');
+    if (!body) return;
+    const tagId = cardByHeading('연구 태그 선택')?.querySelector('select')?.value || '';
+    const defs = (state.variableDefinitions || []).filter(v => !tagId || !v.tagId || v.tagId === tagId);
+    if (!defs.length) {
+      return setTableEmpty(body, 5, '저장된 변수가 없습니다.', '변수명, 자료형, 단위만 입력한 뒤 계속 저장하세요.');
+    }
+    body.innerHTML = defs.map(v => `<tr>
+      <td><strong>${escapeHtml(v.name)}</strong></td>
+      <td>${escapeHtml(v.type)}</td>
+      <td>${escapeHtml(v.unit || '-')}</td>
+      <td>${escapeHtml(v.tagName || '공통 변수')}</td>
+      <td><button class="btn ghost" data-use-vdef="${v.id}">입력 예정에 추가</button> <button class="btn ghost" data-del-vdef="${v.id}">삭제</button></td>
+    </tr>`).join('');
+
+    $$('[data-use-vdef]', body).forEach(btn => btn.addEventListener('click', () => addClinicalVariable(btn.dataset.useVdef)));
+    $$('[data-del-vdef]', body).forEach(btn => btn.addEventListener('click', () => {
+      patchState(s => { s.variableDefinitions = (s.variableDefinitions || []).filter(v => v.id !== btn.dataset.delVdef); });
+      renderVariableLibrary();
+      toast('저장된 변수를 삭제했습니다.');
+    }));
+  }
+
+  function addClinicalVariable(variableDefinitionId = null) {
+    const tagSelect = cardByHeading('연구 태그 선택')?.querySelector('select');
+    const tagId = tagSelect?.value;
+    const stateBefore = readState();
+    const tag = stateBefore.tags.find(t => t.id === tagId);
+    if (!tag) return toast('연구 태그를 먼저 선택하세요.', 'gray');
+    const classCard = cardByHeading('연구 내 분류값 선택') || cardByHeading('태그 안에서 구분값 선택');
+    const classSelects = $$('select', classCard);
+    const directClass = $$('.direct-entry input', classCard).map(i => i.value.trim());
+
+    const itemCard = cardByHeading('입력할 자료 항목 직접 고르기');
+    const checked = $$('input[type="checkbox"]:checked', itemCard).map(i => i.closest('.mini-item')?.querySelector('strong')?.textContent.trim().replace(/^\s*/, '')).filter(Boolean);
+    const customInputs = $$('.direct-entry input', itemCard).map(i => i.value.trim());
+    const rule = $('.direct-entry textarea', itemCard)?.value.trim() || '';
+
+    const varCard = cardByHeading('새 변수 만들기');
+    const vInputs = $$('input', varCard);
+    const vSelects = $$('select', varCard);
+    const variableName = sourceDefinition?.name || vInputs[0]?.value.trim() || customInputs[0] || checked[0];
+    if (!variableName) return toast('추가할 자료 항목 또는 변수명을 입력하거나, 변수 사전에서 항목을 선택하세요.', 'gray');
+
+    const state = patchState(s => {
+      s.variables.unshift({
+        id: uid('VAR'),
+        tagId,
+        tagName: tag.name,
+        categories: checked,
+        name: variableName,
+        kind: customInputs[1] || 'custom',
+        type: sourceDefinition?.type || vSelects[0]?.value || '숫자',
+        unit: sourceDefinition?.unit || vInputs[1]?.value.trim() || customInputs[2] || '',
+        valueRule: sourceDefinition?.valueRule || vSelects[1]?.value || '직접 입력 허용',
+        level: sourceDefinition?.level || vSelects[2]?.value || '환자 단위',
+        matching: cardByHeading('연구 태그 선택')?.querySelectorAll('select')[1]?.value || '가명 연구대상자 ID',
+        internal: {
+          day: classSelects[0]?.value === '__direct__' ? directClass[0] : selectedText(classSelects[0]) || directClass[0] || '',
+          group: classSelects[1]?.value === '__direct__' ? directClass[1] : selectedText(classSelects[1]) || directClass[1] || '',
+          stage: classSelects[2]?.value === '__direct__' ? directClass[2] : selectedText(classSelects[2]) || directClass[2] || ''
+        },
+        rule: sourceDefinition?.description || rule,
+        variableDefinitionId: sourceDefinition?.id || '',
+        status: '저장 대기',
+        createdAt: nowText()
+      });
+    });
+    $$('input[type="checkbox"]', itemCard).forEach(i => i.checked = false);
+    $$('input, textarea', itemCard).forEach(i => { if (i.type !== 'checkbox') i.value = ''; });
+    $$('input', varCard).forEach(i => i.value = '');
+    renderClinicalVariables(state);
+    addAudit('clinical variable create', 'variable', variableName);
+    toast('입력 예정 자료 항목을 추가했습니다.');
+  }
+
+  function renderClinicalVariables(state = readState()) {
+    setMetricByLabel('선택된 변수', `${state.variables.length}개`, state.variables.length ? '등록됨' : '대기');
+    const currentTagId = cardByHeading('연구 태그 선택')?.querySelector('select')?.value || '';
+    const assignedSubjects = currentTagId ? state.studyPatients.filter(sp => sp.tagId === currentTagId).length : 0;
+    setMetricByLabel('선택된 대상자', `${assignedSubjects}명`, assignedSubjects ? '배정됨' : '대기');
+    setMetricByLabel('저장 대기 자료', `${state.variables.filter(v => v.status === '저장 대기').length}건`, state.variables.length ? '확인' : '대기');
+    const body = cardByHeading('입력 예정 자료')?.querySelector('tbody');
+    if (!body) return;
+    if (!state.variables.length) return setTableEmpty(body, 8, '아직 추가된 입력 항목이 없습니다.', '연구 태그, 연구 내 분류값, 변수를 선택해 추가하세요.');
+    body.innerHTML = state.variables.map(v => `<tr>
+      <td><input type="checkbox" checked></td><td>${escapeHtml(v.tagName)}</td><td>${escapeHtml([v.internal?.day, v.internal?.group, v.internal?.stage].filter(Boolean).join(' / ') || '-')}</td>
+      <td>${escapeHtml(v.name)}</td><td>${escapeHtml(v.type)}</td><td>${escapeHtml(v.unit || '-')}</td><td>${escapeHtml(v.matching)}</td><td>${badge(v.status, 'yellow')} <button class="btn ghost" data-delete-var="${v.id}">삭제</button></td>
+    </tr>`).join('');
+    $$('[data-delete-var]', body).forEach(btn => btn.addEventListener('click', () => {
+      patchState(s => { s.variables = s.variables.filter(v => v.id !== btn.dataset.deleteVar); });
+      renderClinicalVariables();
+      toast('입력 예정 자료 항목을 삭제했습니다.');
+    }));
+  }
+
+  function initTagAssignment() {
+    const firstCard = cardByHeading('연구 태그 선택');
+    const tagSelect = firstCard?.querySelector('select');
+    fillTagSelect(tagSelect, '등록된 연구 태그가 없습니다.');
+    tagSelect?.addEventListener('change', () => { populateAssignmentInternalSelects(tagSelect.value); renderAssignmentTargets(); updateAssignmentSummary(); });
+    populateAssignmentInternalSelects(tagSelect?.value || '');
+
+    const saveBtn = cardByHeading('대상 선택')?.querySelector('button');
+    removeDisabledAction(saveBtn);
+    saveBtn?.addEventListener('click', saveAssignments);
+    renderAssignmentTargets();
+    updateAssignmentSummary();
+  }
+
+  function populateAssignmentInternalSelects(tagId) {
+    const card = cardByHeading('태그 내부 구분값 입력');
+    if (!card) return;
+    const selects = $$('select', card);
+    if (selects[0]) selects[0].innerHTML = axisValueOptions(tagId, ['관찰구간', 'timepoint', 'day', 'visit', '시간', '방문'], '등록된 관찰구간/Timepoint 없음');
+    if (selects[1]) selects[1].innerHTML = axisValueOptions(tagId, ['비교군', 'group', '군', '그룹', 'cohort'], '등록된 비교군 없음');
+    if (selects[2]) selects[2].innerHTML = axisValueOptions(tagId, ['자료영역', 'stage', '상태', 'outcome', 'domain', 'section'], '등록된 자료영역/상태 없음');
+  }
+
+  function renderAssignmentTargets() {
+    const state = readState();
+    const body = cardByHeading('대상 선택')?.querySelector('tbody');
+    if (!body) return;
+    const targets = [
+      ...state.vitalFiles.map(f => ({ id: f.id, label: f.name, type: 'Vital file', tagIds: f.tagIds || [], status: f.uploadStatus })),
+      ...state.variables.map(v => ({ id: v.id, label: v.name, type: '임상자료 변수', tagIds: [v.tagId], status: v.status }))
+    ];
+    if (!targets.length) return setTableEmpty(body, 9, '태그를 부여할 대상이 없습니다.', 'Vital 파일을 업로드하거나 연구자료 항목을 추가하세요.');
+    body.innerHTML = targets.map(t => `<tr>
+      <td><input type="checkbox" data-target-id="${escapeHtml(t.id)}" data-target-type="${escapeHtml(t.type)}"></td><td>${escapeHtml(t.label)}</td><td>${escapeHtml(t.type)}</td>
+      <td>${(t.tagIds || []).length ? badge('태그 있음', 'blue') : badge('미태그', 'gray')}</td><td class="assign-day">-</td><td class="assign-group">-</td><td class="assign-stage">-</td><td>${badge('없음', 'green')}</td><td>${escapeHtml(t.status || '-')}</td>
+    </tr>`).join('');
+    $$('[data-target-id]', body).forEach(box => box.addEventListener('change', updateAssignmentSummary));
+  }
+
+  function saveAssignments() {
+    const tagSelect = cardByHeading('연구 태그 선택')?.querySelector('select');
+    const tagId = tagSelect?.value;
+    const state = readState();
+    const tag = state.tags.find(t => t.id === tagId);
+    if (!tag) return toast('연구 태그를 먼저 선택하세요.', 'gray');
+    const checked = $$('[data-target-id]:checked');
+    if (!checked.length) return toast('태그를 부여할 대상을 선택하세요.', 'gray');
+    const classCard = cardByHeading('태그 내부 구분값 입력');
+    const selects = $$('select', classCard);
+    const direct = $$('.direct-entry input', classCard).map(i => i.value.trim());
+    const internal = {
+      day: selects[0]?.value === '__direct__' ? direct[0] : selectedText(selects[0]) || direct[0] || '',
+      group: selects[1]?.value === '__direct__' ? direct[1] : selectedText(selects[1]) || direct[1] || '',
+      stage: selects[2]?.value === '__direct__' ? direct[2] : selectedText(selects[2]) || direct[2] || ''
+    };
+    const note = classCard?.querySelector('.field[style] input')?.value.trim() || '';
+    const next = patchState(s => {
+      checked.forEach(box => {
+        const targetId = box.dataset.targetId;
+        const targetType = box.dataset.targetType;
+        const vf = s.vitalFiles.find(f => f.id === targetId);
+        if (vf && !(vf.tagIds || []).includes(tagId)) vf.tagIds = [...(vf.tagIds || []), tagId];
+        s.assignments.unshift({ id: uid('MAP'), tagId, tagName: tag.name, targetId, targetType, internal, note, assignedBy: USER, assignedAt: nowText() });
+      });
+      // 자유 입력된 내부 구분값을 해당 태그의 표준 후보로도 저장합니다.
+      [['관찰구간 / Timepoint', internal.day], ['비교군', internal.group], ['자료영역 / 상태', internal.stage]].forEach(([axisName, val]) => {
+        if (!val || val === '선택 안 함') return;
+        let axis = s.axes.find(a => a.tagId === tagId && a.name.toLowerCase() === axisName.toLowerCase());
+        if (!axis) {
+          axis = { id: uid('AXIS'), tagId, name: axisName, inputMode: '드롭다운 + 관리자 새 값 추가', level: '연구 이벤트 단위', values: [] };
+          s.axes.push(axis);
+        }
+        if (!axis.values.some(v => v.label.toLowerCase() === val.toLowerCase())) axis.values.push({ id: uid('VAL'), label: val, synonyms: [] });
+      });
+    });
+    renderAssignmentTargets();
+    populateAssignmentInternalSelects(tagId);
+    updateAssignmentSummary(next);
+    addAudit('tag assignment', 'data_tag_mapping', `${tag.name} → ${checked.length}건`);
+    toast('연구 태그와 내부 구분값을 저장했습니다.');
+  }
+
+  function updateAssignmentSummary(state = readState()) {
+    const tagSelect = cardByHeading('연구 태그 선택')?.querySelector('select');
+    const tag = state.tags.find(t => t.id === tagSelect?.value);
+    const dds = $$('.preview-card .kv dd');
+    if (dds[0]) dds[0].textContent = tag?.name || '없음';
+    const classCard = cardByHeading('태그 내부 구분값 입력');
+    const internal = $$('select', classCard).map(selectedText).filter(Boolean).join(' / ');
+    if (dds[1]) dds[1].textContent = internal || '없음';
+    if (dds[2]) dds[2].textContent = `${$$('[data-target-id]:checked').length}건`;
+    if (dds[3]) dds[3].textContent = '0건';
+  }
+
+  function initTagDetail() {
+    const select = $('.preview-card select');
+    fillTagSelect(select, '등록된 연구 태그가 없습니다.');
+    select?.addEventListener('change', () => renderTagDetail(select.value));
+    renderTagDetail(select?.value || '');
+  }
+
+  function renderTagDetail(tagId) {
+    const state = readState();
+    const tag = state.tags.find(t => t.id === tagId);
+    const kv = $$('dl.kv dd');
+    if (kv[0]) kv[0].textContent = tag?.name || '선택된 태그 없음';
+    if (kv[1]) kv[1].textContent = tag?.description || '없음';
+    if (kv[2]) kv[2].textContent = tag?.status || '없음';
+    if (kv[3]) kv[3].textContent = tag?.matchUnit || '없음';
+    if (kv[4]) kv[4].textContent = tag?.irb || '없음';
+
+    const axisBody = cardByHeading('태그 내부 분류 구조')?.querySelector('tbody');
+    const axes = state.axes.filter(a => a.tagId === tagId);
+    if (axisBody) {
+      const rows = axes.flatMap(a => (a.values?.length ? a.values : [{ label: '-', synonyms: [] }]).map(v => `<tr><td>${escapeHtml(a.name)}</td><td>${escapeHtml(v.label)}</td><td>${escapeHtml((v.synonyms || []).join(', ') || '-')}</td><td>${escapeHtml(a.level)}</td><td>${escapeHtml(a.inputMode)}</td></tr>`));
+      axisBody.innerHTML = rows.join('') || `<tr class="empty-row"><td colspan="5"><strong>선택된 연구 태그의 내부 분류축이 없습니다.</strong><br><span>태그 관리에서 Day/group 같은 내부 구조를 추가하세요.</span></td></tr>`;
+    }
+    const matrixBody = cardByHeading('태그에 포함된 데이터 매트릭스')?.querySelector('tbody');
+    if (matrixBody) {
+      const assigned = state.assignments.filter(a => a.tagId === tagId);
+      if (!assigned.length) return setTableEmpty(matrixBody, 8, '선택된 태그 또는 포함된 데이터가 없습니다.', '태그 부여 화면에서 대상과 내부 구분값을 저장하면 표시됩니다.');
+      matrixBody.innerHTML = assigned.map(a => `<tr><td>${escapeHtml(a.targetId)}</td><td>${escapeHtml(a.targetType)}</td><td>${a.targetType === 'Vital file' ? escapeHtml(a.targetId) : '-'}</td><td>${escapeHtml(a.internal?.day || '-')}</td><td>${escapeHtml(a.internal?.group || '-')}</td><td>${state.variables.filter(v => v.tagId === tagId).length}</td><td>-</td><td>${escapeHtml(a.assignedAt)}</td></tr>`).join('');
+    }
+  }
+
+  function initStatisticalAnalysis() {
+    const tagSelect = cardByHeading('데이터 선택')?.querySelector('select');
+    fillTagSelect(tagSelect, '등록된 연구 태그가 없습니다.');
+    tagSelect?.addEventListener('change', () => { populateAnalysisOptions(); updateAnalysisPreview(); });
+    populateAnalysisOptions();
+    $$('input[name="method"]').forEach(r => r.addEventListener('change', updateAnalysisPreview));
+    $$('select, input', cardByHeading('x축·y축·변수 설정') || document).forEach(el => el.addEventListener('input', updateAnalysisPreview));
+    $$('input', cardByHeading('그래프 스타일') || document).forEach(el => el.addEventListener('input', updatePlotStyle));
+    const runBtn = $('.preview-card button.btn.teal');
+    removeDisabledAction(runBtn);
+    runBtn?.addEventListener('click', saveAnalysisJob);
+    updateAnalysisPreview();
+    updatePlotStyle();
+    renderSignalTrajectoryPanel($('#analysisTrajectoryPreview'), [], '', {title:'분석 그래프 미리보기', subtitle:'x축/y축/그룹과 실제 데이터가 연결되면 이 영역에 궤적 또는 분석 그래프가 생성됩니다.', emptyText:'아직 표시할 실제 분석 데이터가 없습니다.', badge:'preview'});
+  }
+
+  function populateAnalysisOptions() {
+    const state = readState();
+    const tagId = cardByHeading('데이터 선택')?.querySelector('select')?.value || '';
+    const axes = state.axes.filter(a => !tagId || a.tagId === tagId);
+    const variables = [
+      ...state.variables.filter(v => !tagId || v.tagId === tagId),
+      ...(state.variableDefinitions || []).filter(v => !tagId || !v.tagId || v.tagId === tagId).map(v => ({...v, id: `def:${v.id}`, status: '변수 사전'}))
+    ];
+    const setting = cardByHeading('x축·y축·변수 설정');
+    const selects = $$('select', setting);
+    if (selects[0]) selects[0].innerHTML = option('', 'x축 변수 선택') + option('elapsed_time', '시간') + axes.map(a => option(`axis:${a.id}`, a.name)).join('') + option('custom', '사용자 지정 변수');
+    if (selects[1]) selects[1].innerHTML = option('', 'y축 변수 선택') + variables.map(v => option(`var:${v.id}`, v.name)).join('') + option('vital_numeric', 'Vital numeric variable') + option('lab_value', 'Lab value') + option('clinical_variable', 'Clinical variable') + option('outcome_variable', 'Outcome variable');
+    if (selects[2]) selects[2].innerHTML = option('', '그룹 없음') + axes.map(a => option(`axis:${a.id}`, a.name)).join('') + option('clinical_condition', '임상변수 기준') + option('custom_condition', '직접 조건식');
+  }
+
+  function updateAnalysisPreview() {
+    const state = readState();
+    const tagId = cardByHeading('데이터 선택')?.querySelector('select')?.value || '';
+    const tag = state.tags.find(t => t.id === tagId);
+    const method = $('input[name="method"]:checked')?.closest('.mini-item')?.querySelector('strong')?.textContent.trim() || '';
+    const setting = cardByHeading('x축·y축·변수 설정');
+    const selects = $$('select', setting);
+    const x = selectedText(selects[0]) || '미선택';
+    const y = selectedText(selects[1]) || '미선택';
+    const group = selectedText(selects[2]) || '그룹 없음';
+    const covariates = setting?.querySelector('input')?.value.trim() || '';
+    const previewRows = $$('.preview-card .stat-row');
+    const vitals = state.vitalFiles.filter(f => !tagId || (f.tagIds || []).includes(tagId));
+    const vars = [
+      ...state.variables.filter(v => !tagId || v.tagId === tagId),
+      ...(state.variableDefinitions || []).filter(v => !tagId || !v.tagId || v.tagId === tagId)
+    ];
+    if (previewRows[0]) previewRows[0].querySelector('strong').textContent = '0명';
+    if (previewRows[1]) previewRows[1].querySelector('strong').textContent = `${vitals.length}개`;
+    if (previewRows[2]) previewRows[2].querySelector('strong').textContent = `${vars.length} variables`;
+    if (previewRows[3]) previewRows[3].querySelector('span:last-child').outerHTML = badge(x, x === '미선택' ? 'gray' : 'teal');
+    if (previewRows[4]) previewRows[4].querySelector('span:last-child').outerHTML = badge(y, y === '미선택' ? 'gray' : 'teal');
+    if (previewRows[5]) previewRows[5].querySelector('span:last-child').outerHTML = badge(method || '미선택', method ? 'blue' : 'gray');
+    const codebox = $('.preview-card .codebox');
+    if (codebox) codebox.textContent = `tag = ${tag?.name || '미선택'}\nmethod = ${method || '미선택'}\ny ~ ${x}${group && group !== '그룹 없음' ? ' + group(' + group + ')' : ''}${covariates ? ' + ' + covariates : ''}\n주의: 실제 p-value 계산은 분석 엔진/API 연결 후 수행됩니다.`;
+    const axisLabels = $$('.axis-config span');
+    if (axisLabels[0]) axisLabels[0].textContent = `x축: ${x}`;
+    if (axisLabels[1]) axisLabels[1].textContent = `y축: ${y}`;
+    if (axisLabels[2]) axisLabels[2].textContent = `색상: ${group}`;
+    renderSignalTrajectoryPanel($('#analysisTrajectoryPreview'), [], '', {title:'분석 그래프 미리보기', subtitle:`x축 ${x} · y축 ${y} · 색상 ${group} · 방법 ${method || '미선택'}`, emptyText:'실제 데이터와 분석 엔진이 연결되면 선택 조건에 맞는 궤적이 표시됩니다.', badge:'preview'});
+  }
+
+  function updatePlotStyle() {
+    const card = cardByHeading('그래프 스타일');
+    if (!card) return;
+    const inputs = $$('input', card);
+    const pointSize = Number(inputs[0]?.value || 7.5);
+    const lineWidth = Number(inputs[1]?.value || 2.2);
+    const ciAlpha = Number(inputs[2]?.value || 0.14);
+    $$('circle', card).forEach(c => { if (!Number.isNaN(pointSize)) c.setAttribute('r', String(pointSize)); });
+    $$('polyline', card).forEach(l => { if (!Number.isNaN(lineWidth)) l.setAttribute('stroke-width', String(lineWidth)); });
+    $$('.lmm-panel', card).forEach(panel => panel.style.setProperty('--ci-alpha', String(ciAlpha)));
+  }
+
+  function saveAnalysisJob() {
+    const state = readState();
+    const tagId = cardByHeading('데이터 선택')?.querySelector('select')?.value || '';
+    const tag = state.tags.find(t => t.id === tagId);
+    const method = $('input[name="method"]:checked')?.closest('.mini-item')?.querySelector('strong')?.textContent.trim();
+    const setting = cardByHeading('x축·y축·변수 설정');
+    const selects = $$('select', setting);
+    const x = selectedText(selects[0]);
+    const y = selectedText(selects[1]);
+    if (!tag || !method || !x || !y) return toast('연구 태그, 분석 방법, x축, y축을 모두 선택하세요.', 'gray');
+    const analysis = {
+      id: uid('ANALYSIS'),
+      name: `${tag.name}_${method}_${nowText()}`,
+      tagId,
+      tagName: tag.name,
+      method,
+      x,
+      y,
+      group: selectedText(selects[2]) || '그룹 없음',
+      status: '설정 저장됨',
+      createdAt: nowText(),
+      createdBy: USER
+    };
+    patchState(s => s.analyses.unshift(analysis));
+    renderAnalysisResultTable(analysis);
+    addAudit('analysis run', 'analysis_job', analysis.name);
+    toast('분석 설정을 저장했습니다. 실제 통계 계산은 백엔드 분석 엔진 연결 후 수행됩니다.');
+  }
+
+  function renderAnalysisResultTable(analysis) {
+    const body = cardByHeading('변수별 분석 결과 상세')?.querySelector('tbody');
+    if (!body) return;
+    body.innerHTML = `<tr><td>${escapeHtml(analysis.y)}</td><td>${escapeHtml(analysis.method)}</td><td>${escapeHtml(analysis.group)}</td><td>계산 대기</td><td>계산 대기</td><td>계산 대기</td><td>${badge('분석 엔진 필요', 'yellow')}</td><td>설정은 저장되었고, p-value는 실제 데이터/분석 API 연결 후 계산됩니다.</td></tr>`;
+  }
+
+  function initAnalysisResults() {
+    const state = readState();
+    const body = cardByHeading('분석 결과 목록')?.querySelector('tbody');
+    if (!body) return;
+    if (!state.analyses.length) return setTableEmpty(body, 8, '아직 저장된 분석 결과가 없습니다.', '통계 분석 화면에서 분석 설정을 저장하세요.');
+    body.innerHTML = state.analyses.map(a => `<tr><td>${escapeHtml(a.id)}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.tagName)}</td><td>${escapeHtml(a.method)}</td><td>0명</td><td>${readState().vitalFiles.filter(f => (f.tagIds || []).includes(a.tagId)).length}개</td><td>${badge(a.status, 'blue')}</td><td><button class="btn ghost" data-analysis-id="${a.id}">상세</button></td></tr>`).join('');
+  }
+
+  function initAuditLog() {
+    const body = $('tbody');
+    const state = readState();
+    if (!body) return;
+    if (!state.audit.length) return;
+    body.innerHTML = state.audit.map(a => `<tr><td>${escapeHtml(a.id)}</td><td>${escapeHtml(a.time)}</td><td>${escapeHtml(a.user)}</td><td>Member</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.target)}</td><td>-</td><td>${escapeHtml(a.description)}</td><td>local</td><td>${badge(a.status, 'green')}</td></tr>`).join('');
+  }
+
+
+  function initPatientMatching() {
+    const fileCard = cardByHeading('1단계. 매칭할 Vital 파일 선택') || cardByHeading('매칭할 Vital 파일');
+    const targetCard = cardByHeading('1단계. 대상자 선택') || cardByHeading('대상자 선택');
+    const saveBtn = $('.preview-card button.btn.teal');
+    if (!fileCard || !targetCard) return;
+    fillTagSelect(targetCard.querySelector('[data-role="match-tag"]') || targetCard.querySelector('select'), '등록된 태그가 없습니다.');
+    removeDisabledAction(saveBtn);
+
+    const emptyState = $('.empty-state', targetCard);
+    if (emptyState && !targetCard.querySelector('[data-role="manual-match-form"]')) {
+      emptyState.outerHTML = `<div class="direct-entry" data-role="manual-match-form" style="margin-top:14px">
+        <div class="direct-entry-title"><strong>직접 대상자 매칭</strong><span class="badge teal">1단계</span></div>
+        <div class="grid two">
+          <div class="field"><label>가명 연구대상자 ID</label><input class="input" data-role="match-patient" placeholder="예: P001"></div>
+        </div>
+        <div class="helper">이 단계에서는 Vital 파일을 대상자에게만 연결합니다. Pre/Post, Day 2, ECMO episode 같은 관찰시점 정보는 아래 2단계에서 파일별로 따로 배정합니다.</div>
+      </div>`;
+    }
+
+    $('[data-role="match-patient"]')?.addEventListener('input', updateMatchingSummary);
+    saveBtn?.addEventListener('click', savePatientMatches);
+    $('[data-role="save-observation"]')?.addEventListener('click', saveObservationBundle);
+    $('[data-role="go-tag-assignment"]')?.addEventListener('click', () => { location.href = 'tag-assignment.html'; });
+    renderMatchingFiles();
+    renderObservationFileOptions();
+    renderObservationSummary();
+  }
+
+  function renderMatchingFiles() {
+    const state = readState();
+    const body = cardByHeading('1단계. 매칭할 Vital 파일 선택')?.querySelector('tbody') || cardByHeading('매칭할 Vital 파일')?.querySelector('tbody');
+    if (!body) return;
+    const files = state.vitalFiles.filter(f => f.uploadStatus !== '오류');
+    if (!files.length) return setTableEmpty(body, 5, '매칭 대기 중인 Vital 파일이 없습니다.', 'Vital 파일을 먼저 업로드하세요.');
+    body.innerHTML = files.map(f => `<tr>
+      <td><input type="checkbox" data-match-file="${escapeHtml(f.id)}"></td>
+      <td>${escapeHtml(f.name)}</td>
+      <td>${escapeHtml(f.recordingStart || '미입력')}</td>
+      <td>${escapeHtml(f.recordingEnd || '미입력')}</td>
+      <td>${f.patientId ? `${badge('대상자 매칭됨', 'green')}<br><span class="muted">${escapeHtml(f.patientId)}</span>` : badge('대상자 미매칭', 'yellow')}</td>
+    </tr>`).join('');
+    $$('[data-match-file]', body).forEach(box => box.addEventListener('change', updateMatchingSummary));
+    updateMatchingSummary();
+  }
+
+  function updateMatchingSummary() {
+    const selected = $$('[data-match-file]:checked').length;
+    const patientId = $('[data-role="match-patient"]')?.value.trim() || '';
+    const dds = $$('.preview-card .kv dd');
+    if (dds[0]) dds[0].textContent = `${selected}개`;
+    if (dds[1]) dds[1].textContent = patientId || '미선택';
+    if (dds[2]) dds[2].textContent = `${selected && patientId ? selected : 0}건`;
+    if (dds[3]) dds[3].textContent = '관찰시점 배정';
+  }
+
+  function savePatientMatches() {
+    const selected = $$('[data-match-file]:checked').map(x => x.dataset.matchFile);
+    if (!selected.length) return toast('대상자와 연결할 Vital 파일을 선택하세요.', 'gray');
+    const patientId = $('[data-role="match-patient"]')?.value.trim();
+    if (!patientId) return toast('가명 연구대상자 ID를 입력하세요.', 'gray');
+    patchState(s => {
+      s.vitalFiles.forEach(f => {
+        if (selected.includes(f.id)) {
+          f.patientId = patientId;
+          delete f.matchKey;
+          f.matchMethod = 'manual patient_id';
+          f.patientMatchedAt = nowText();
+        }
+      });
+    });
+    addAudit('patient matching', 'vital_file', `${selected.length}개 파일을 대상자에 매칭`);
+    renderMatchingFiles();
+    renderObservationFileOptions();
+    renderObservationSummary();
+    toast('대상자 매칭을 저장했습니다. 이제 2단계에서 관찰시점을 배정하세요.');
+  }
+
+  function renderObservationFileOptions() {
+    const select = $('[data-role="observation-file"]');
+    if (!select) return;
+    const state = readState();
+    const current = select.value;
+    const files = state.vitalFiles.filter(f => f.patientId && f.uploadStatus !== '오류');
+    select.innerHTML = files.length
+      ? option('', '파일 선택') + files.map(f => option(f.id, `${f.patientId} · ${f.name}${f.observationId ? ' · ' + f.observationId : ''}`)).join('')
+      : option('', '대상자 매칭된 파일 없음');
+    if (current && files.some(f => f.id === current)) select.value = current;
+  }
+
+  function saveObservationBundle() {
+    const fileId = $('[data-role="observation-file"]')?.value || '';
+    if (!fileId) return toast('관찰시점을 배정할 Vital 파일을 선택하세요.', 'gray');
+    const observationId = $('[data-role="observation-id"]')?.value.trim() || '';
+    const timepoint = $('[data-role="observation-timepoint"]')?.value.trim() || '';
+    const phase = $('[data-role="observation-phase"]')?.value || '';
+    const note = $('[data-role="observation-note"]')?.value.trim() || '';
+    if (!observationId && !timepoint && !phase) return toast('자료묶음 ID, 관찰시점, 구간 중 하나 이상을 입력하세요.', 'gray');
+    patchState(s => {
+      s.vitalFiles.forEach(f => {
+        if (f.id === fileId) {
+          f.observationId = observationId || f.observationId || '';
+          f.timepoint = timepoint || f.timepoint || '';
+          f.observationPhase = phase || f.observationPhase || '';
+          f.observationNote = note || f.observationNote || '';
+          f.eventId = f.observationId || f.timepoint || f.eventId || '';
+          f.observationAssignedAt = nowText();
+        }
+      });
+    });
+    addAudit('observation assignment', 'vital_file', `${fileId} 관찰시점/자료묶음 배정`);
+    renderObservationFileOptions();
+    renderObservationSummary();
+    renderMatchingFiles();
+    toast('관찰시점/자료묶음 배정을 저장했습니다.');
+  }
+
+  function renderObservationSummary() {
+    const body = $('[data-role="observation-summary"]');
+    if (!body) return;
+    const files = readState().vitalFiles.filter(f => f.patientId && (f.observationId || f.timepoint || f.observationPhase));
+    if (!files.length) return setTableEmpty(body, 5, '아직 배정된 관찰시점이 없습니다.', '대상자 매칭 후 2단계에서 저장하세요.');
+    body.innerHTML = files.map(f => `<tr>
+      <td>${escapeHtml(f.name)}</td>
+      <td>${escapeHtml(f.patientId || '-')}</td>
+      <td>${escapeHtml(f.observationId || '-')}</td>
+      <td>${escapeHtml(f.timepoint || '-')}</td>
+      <td>${escapeHtml(f.observationPhase || '-')}</td>
+    </tr>`).join('');
+  }
+
+
+  // ============================================================
+  // Raw CSV -> 공란 없는 coding-ready 1분 feature CSV 변환
+  // 사용자가 .vital에서 추출한 raw CSV를 업로드하면 브라우저에서 바로
+  // 1분 단위 ML feature table과 신호 궤적 QC를 생성합니다.
+  // ============================================================
+  function initCsvFeatureConverter() {
+    const card = $('#csvConverterCard');
+    if (!card) return;
+    const fileInput = $('#csvRawInput');
+    const selectBtn = $('#csvSelectBtn');
+    const convertBtn = $('#csvConvertBtn');
+    const featureBtn = $('#csvDownloadFeaturesBtn');
+    const dictBtn = $('#csvDownloadDictBtn');
+    const fileName = $('#csvSelectedFileName');
+    [selectBtn, convertBtn, featureBtn, dictBtn].forEach(removeDisabledAction);
+
+    let selectedFile = null;
+    window.__exciteCsvConversion = null;
+    window.__exciteVitalConversion = null;
+
+    selectBtn?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', () => {
+      selectedFile = fileInput.files?.[0] || null;
+      if (fileName) fileName.textContent = selectedFile ? `${selectedFile.name} · ${formatBytes(selectedFile.size)}` : '선택된 raw CSV 없음';
+      setCsvStatus(selectedFile ? 'raw CSV 파일이 선택되었습니다. 설정을 확인한 뒤 1분 feature CSV로 변환하세요.' : '선택된 raw CSV 없음', selectedFile ? 'teal' : 'gray');
+      window.__exciteCsvConversion = null;
+      window.__exciteVitalConversion = null;
+    });
+
+    convertBtn?.addEventListener('click', async () => {
+      if (!selectedFile) return toast('변환할 raw CSV 파일을 먼저 선택하세요.', 'gray');
+      if (!selectedFile.name.toLowerCase().endsWith('.csv')) return toast('이번 모드는 raw CSV만 변환합니다. .vital은 서버 파서 연결 후 처리하세요.', 'yellow');
+      convertBtn.disabled = true;
+      setCsvStatus('raw CSV를 읽고 있습니다. 컬럼, 시간축, segment를 자동 탐색합니다...', 'teal');
+      try {
+        const result = await convertRawVitalCsvFile(selectedFile);
+        result.sourceFile = selectedFile.name;
+        result.sourceType = 'raw CSV';
+        result.outputName = `${result.caseId}_ml_features.csv`;
+        result.dictionaryName = `${result.caseId}_column_dictionary.csv`;
+        window.__exciteCsvConversion = result;
+        window.__exciteVitalConversion = result;
+        renderCsvConversionResult(result);
+        patchState(s => {
+          if (!Array.isArray(s.csvConversions)) s.csvConversions = [];
+          s.csvConversions.unshift({
+            id: uid('CSVCONV'),
+            sourceFile: selectedFile.name,
+            caseId: result.caseId,
+            status: '변환 완료',
+            rowsRead: result.rowsRead,
+            featureRows: result.features.length,
+            columns: result.columns.length,
+            segmentCount: result.segmentCount,
+            createdAt: nowText(),
+            output: result.outputName
+          });
+          s.csvConversions = s.csvConversions.slice(0, 50);
+        });
+        addAudit('raw csv conversion', 'raw_csv', `${selectedFile.name} -> ${result.outputName}`);
+        toast('raw CSV → 공란 없는 1분 feature CSV 변환이 완료되었습니다.');
+      } catch (error) {
+        console.error(error);
+        setCsvStatus(error.message || 'CSV 변환 중 오류가 발생했습니다.', 'red');
+        toast(error.message || 'CSV 변환 중 오류가 발생했습니다.', 'red');
+      } finally {
+        convertBtn.disabled = false;
+      }
+    });
+
+    featureBtn?.addEventListener('click', () => {
+      const result = window.__exciteCsvConversion || window.__exciteVitalConversion;
+      if (!result || !Array.isArray(result.features)) return toast('먼저 raw CSV를 변환하세요.', 'gray');
+      downloadText(result.outputName || `${result.caseId}_ml_features.csv`, '\uFEFF' + toCsv(result.features), 'text/csv;charset=utf-8');
+      addExportRow(result.outputName || `${result.caseId}_ml_features.csv`, 'CSV');
+    });
+
+    dictBtn?.addEventListener('click', () => {
+      const result = window.__exciteCsvConversion || window.__exciteVitalConversion;
+      if (!result || !Array.isArray(result.dictionary)) return toast('먼저 raw CSV를 변환하세요.', 'gray');
+      downloadText(result.dictionaryName || `${result.caseId}_column_dictionary.csv`, '\uFEFF' + toCsv(result.dictionary), 'text/csv;charset=utf-8');
+      addExportRow(result.dictionaryName || `${result.caseId}_column_dictionary.csv`, 'CSV');
+    });
+  }
+
+  function buildVitalConversionJob(file) {
+    const settings = getCsvSettings();
+    const caseId = makeCaseIdFromName(file.name, true);
+    const baseVitalCols = ['HR','MAP','SBP','DBP','SpO2','PI','RR'];
+    const columns = [
+      'case_id','segment_id','segment_num','Minute','Minute_start_datetime_iso','Minute_end_datetime_iso','minute_duration_sec','n_rows_with_any_vital',
+      ...baseVitalCols.flatMap(v => [`${v}_mean`, `${v}_min`, `${v}_max`, `${v}_std`, `${v}_median`, `${v}_count`, `${v}_expected_count_per_min`, `${v}_valid_ratio`, `${v}_missing_rate`, `${v}_flatline_flag`]),
+      `n_MAP_below_${settings.mapThreshold}`, `n_MAP_below_${settings.mapThreshold}_ratio`, 'n_SpO2_below_90', 'n_SpO2_below_90_ratio', 'n_HR_below_40', 'n_HR_below_40_ratio', 'n_HR_above_130', 'n_HR_above_130_ratio', 'n_RR_below_8', 'n_RR_below_8_ratio', 'n_RR_above_30', 'n_RR_above_30_ratio',
+      `label_next_${settings.futureHorizonMin}min_MAP_below_${settings.mapThreshold}`
+    ];
+    return {
+      jobId: uid('VITALCONV'), caseId, sourceFile: file.name, sourceSize: file.size,
+      sourceType: 'raw .vital', outputType: 'coding-ready 1min feature CSV', blankPolicy: '공란 제거: 원본 sampling gap은 count/valid_ratio/missing_rate/value_age로 표현',
+      segmentGapSec: settings.segmentGapSec, timeBinSec: 60,
+      futureHorizonMin: settings.futureHorizonMin, mapThreshold: settings.mapThreshold,
+      requiresBackendParser: true,
+      parserPlan: ['vitaldb Python package로 .vital 원본 읽기', 'numeric trend만 1분 bin으로 요약', 'waveform은 기본 제외 또는 summary 옵션', 'interpolation 기본 금지', 'forward-fill 사용 시 value_age/observed flag 기록', '공란 없는 ML feature table 생성'],
+      columns,
+      dictionary: columns.map(c => ({ column: c, description: describeFeatureColumn(c) || 'vital 원본에서 생성될 coding-ready feature column' }))
+    };
+  }
+
+  function setCsvStatus(message, tone = 'gray') {
+    const el = $('#csvConversionStatus');
+    if (!el) return;
+    el.className = `callout ${tone === 'red' ? 'dangerbox' : tone === 'yellow' ? 'warning' : ''}`;
+    el.textContent = message;
+  }
+
+  async function readFileTextWithEncodingGuess(file) {
+    const buffer = await file.arrayBuffer();
+    const labels = ['utf-8', 'euc-kr', 'windows-949', 'latin1'];
+    let best = { text: '', encoding: 'utf-8', badness: Infinity };
+    for (const label of labels) {
+      try {
+        const text = new TextDecoder(label, { fatal: false }).decode(buffer);
+        const badness = (text.match(/�/g) || []).length;
+        if (badness < best.badness) best = { text, encoding: label, badness };
+        if (badness === 0) break;
+      } catch (_) {}
+    }
+    return best;
+  }
+
+  function detectSeparatorAndHeader(text) {
+    const lines = text.split(/\r?\n/).slice(0, 200);
+    const seps = [',', '\t', ';', '|'];
+    const sep = seps.reduce((best, s) => {
+      const score = lines.reduce((sum, line) => sum + countCharOutsideQuotes(line, s), 0);
+      return score > best.score ? { sep: s, score } : best;
+    }, { sep: ',', score: -1 }).sep;
+    const keywords = ['TIME','DATE','DATETIME','TIMESTAMP','ECG','HR','HEART','ABP','ART','IBP','MAP','MEAN','SYS','DIA','PLETH','SPO2','SAT','RESP','RR','PERF','PI'];
+    let bestIdx = 0;
+    let bestScore = -1;
+    lines.forEach((line, idx) => {
+      const upper = line.toUpperCase();
+      const keywordScore = keywords.reduce((sum, k) => sum + (upper.includes(k) ? 1 : 0), 0);
+      const sepScore = countCharOutsideQuotes(line, sep);
+      const score = keywordScore * 10 + sepScore;
+      if (score > bestScore) { bestScore = score; bestIdx = idx; }
+    });
+    return { sep, headerIdx: bestIdx };
+  }
+
+  function countCharOutsideQuotes(line, ch) {
+    let count = 0, inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQuotes && line[i + 1] === '"') i++;
+        else inQuotes = !inQuotes;
+      } else if (!inQuotes && c === ch) count++;
+    }
+    return count;
+  }
+
+  function parseDelimited(text, sep, headerIdx) {
+    const lines = text.split(/\r?\n/).slice(headerIdx).filter(line => line.trim() !== '');
+    if (!lines.length) throw new Error('CSV header를 찾지 못했습니다.');
+    const headers = parseDelimitedLine(lines[0], sep).map(h => String(h).trim()).filter(h => !/^Unnamed/i.test(h));
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseDelimitedLine(lines[i], sep);
+      const obj = {};
+      headers.forEach((h, j) => { obj[h] = cells[j] ?? ''; });
+      if (Object.values(obj).some(v => String(v).trim() !== '')) rows.push(obj);
+    }
+    return { headers, rows };
+  }
+
+  function parseDelimitedLine(line, sep) {
+    const out = [];
+    let cur = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (!inQuotes && c === sep) {
+        out.push(cur); cur = '';
+      } else cur += c;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function makeCaseIdFromName(filename, useShort = true) {
+    const stem = filename.replace(/\.[^.]+$/, '');
+    if (useShort) {
+      const m = stem.match(/(.+_\d{6})_\d{6}$/);
+      if (m) return m[1];
+    }
+    return stem;
+  }
+
+  function parseStartDateTimeFromName(filename) {
+    const stem = filename.replace(/\.[^.]+$/, '');
+    const m = stem.match(/_(\d{6})_(\d{6})$/);
+    if (!m) return null;
+    const d = m[1], t = m[2];
+    const year = 2000 + Number(d.slice(0, 2));
+    const month = Number(d.slice(2, 4)) - 1;
+    const day = Number(d.slice(4, 6));
+    const hour = Number(t.slice(0, 2));
+    const min = Number(t.slice(2, 4));
+    const sec = Number(t.slice(4, 6));
+    const dt = new Date(year, month, day, hour, min, sec);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function normalizeColname(value) {
+    return String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  function findColumn(headers, patternGroups) {
+    const normMap = headers.map(col => [col, normalizeColname(col)]);
+    for (const patterns of patternGroups) {
+      const normalized = patterns.map(normalizeColname);
+      for (const [col, norm] of normMap) {
+        if (normalized.every(p => norm.includes(p))) return col;
+      }
+    }
+    return null;
+  }
+
+  function detectVitalColumns(headers) {
+    const patterns = {
+      HR: [['ECG','HR'], ['HEART','RATE'], ['HEARTRATE'], ['HR']],
+      MAP: [['ABP','MEAN'], ['ART','MEAN'], ['IBP','MEAN'], ['MEAN','BP'], ['MAP']],
+      SBP: [['ABP','SYS'], ['ART','SYS'], ['IBP','SYS'], ['SYSTOLIC'], ['SBP']],
+      DBP: [['ABP','DIA'], ['ART','DIA'], ['IBP','DIA'], ['DIASTOLIC'], ['DBP']],
+      SpO2: [['PLETH','SPO2'], ['PLETH','SATO2'], ['SPO2'], ['SATO2'], ['SAT','O2']],
+      PI: [['PLETH','PERF'], ['PERF','REL'], ['PERFUSION'], ['PI']],
+      RR: [['RESP','RATE'], ['RESP','RR'], ['RESPRATE'], ['RESP'], ['RR']]
+    };
+    const out = {};
+    Object.entries(patterns).forEach(([name, p]) => out[name] = findColumn(headers, p));
+    return out;
+  }
+
+  function findTimeColumns(headers) {
+    const norm = headers.map(col => [col, normalizeColname(col)]);
+    let datetimeCol = null, dateCol = null, timeCol = null;
+    for (const [col, n] of norm) {
+      if (['DATETIME','TIMESTAMP','DATEANDTIME'].includes(n)) datetimeCol = col;
+      else if (n === 'DATE') dateCol = col;
+      else if (['TIME','CLOCKTIME'].includes(n)) timeCol = col;
+    }
+    if (!datetimeCol) datetimeCol = norm.find(([, n]) => n.includes('DATETIME') || n.includes('TIMESTAMP'))?.[0] || null;
+    if (!dateCol) dateCol = norm.find(([, n]) => n.startsWith('DATE'))?.[0] || null;
+    if (!timeCol) timeCol = norm.find(([, n]) => n.startsWith('TIME'))?.[0] || null;
+    return { datetimeCol, dateCol, timeCol };
+  }
+
+  function numericClean(value) {
+    const s = String(value ?? '').trim().replaceAll(',', '').replaceAll("'", '');
+    if (!s || ['nan','NaN','None','null','--','---'].includes(s)) return NaN;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function median(values) {
+    const arr = values.filter(Number.isFinite).sort((a, b) => a - b);
+    if (!arr.length) return NaN;
+    const mid = Math.floor(arr.length / 2);
+    return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+  }
+
+  function quantile(values, q) {
+    const arr = values.filter(Number.isFinite).sort((a, b) => a - b);
+    if (!arr.length) return NaN;
+    const pos = (arr.length - 1) * q;
+    const base = Math.floor(pos);
+    const rest = pos - base;
+    return arr[base + 1] !== undefined ? arr[base] + rest * (arr[base + 1] - arr[base]) : arr[base];
+  }
+
+  function mean(values) {
+    const arr = values.filter(Number.isFinite);
+    return arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : NaN;
+  }
+
+  function stdSample(values) {
+    const arr = values.filter(Number.isFinite);
+    if (arr.length < 2) return NaN;
+    const m = mean(arr);
+    return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / (arr.length - 1));
+  }
+
+  function parseDateTimeString(value) {
+    const s = String(value ?? '').trim();
+    if (!s) return null;
+    const normalized = s.replace(/\//g, '-').replace(' ', 'T');
+    const direct = new Date(normalized);
+    if (!Number.isNaN(direct.getTime())) return direct;
+    const parsed = Date.parse(s);
+    return Number.isNaN(parsed) ? null : new Date(parsed);
+  }
+
+  function parseTimeToSeconds(value) {
+    const s = String(value ?? '').trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?$/);
+    if (!m) return NaN;
+    return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] || 0);
+  }
+
+  function buildDateTimes(rows, headers, filename) {
+    const start = parseStartDateTimeFromName(filename);
+    const { datetimeCol, dateCol, timeCol } = findTimeColumns(headers);
+    const n = rows.length;
+
+    if (datetimeCol) {
+      const nums = rows.map(r => numericClean(r[datetimeCol]));
+      if (start && nums.filter(Number.isFinite).length / n > 0.5 && median(nums) < 10000000) {
+        return nums.map(v => Number.isFinite(v) ? new Date(start.getTime() + v * 1000) : null);
+      }
+      const dts = rows.map(r => parseDateTimeString(r[datetimeCol]));
+      if (dts.filter(Boolean).length / n > 0.5) return dts;
+    }
+
+    if (dateCol && timeCol) {
+      const dts = rows.map(r => parseDateTimeString(`${r[dateCol]} ${r[timeCol]}`));
+      if (dts.filter(Boolean).length / n > 0.5) return dts;
+    }
+
+    if (timeCol) {
+      const nums = rows.map(r => numericClean(r[timeCol]));
+      if (start && nums.filter(Number.isFinite).length / n > 0.5 && median(nums) < 10000000) {
+        return nums.map(v => Number.isFinite(v) ? new Date(start.getTime() + v * 1000) : null);
+      }
+      const seconds = rows.map(r => parseTimeToSeconds(r[timeCol]));
+      if (start && seconds.filter(Number.isFinite).length / n > 0.5) {
+        const base = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+        let last = null, dayOffset = 0;
+        return seconds.map(sec => {
+          if (!Number.isFinite(sec)) return null;
+          let ms = base + dayOffset * 86400000 + sec * 1000;
+          if (last !== null && ms - last < -3600000) {
+            dayOffset += 1;
+            ms += 86400000;
+          }
+          last = ms;
+          return new Date(ms);
+        });
+      }
+      const dts = rows.map(r => parseDateTimeString(r[timeCol]));
+      if (dts.filter(Boolean).length / n > 0.5) return dts;
+    }
+
+    if (start) return rows.map((_, i) => new Date(start.getTime() + i * 1000));
+    const fallback = new Date(2026, 0, 1, 0, 0, 0);
+    return rows.map((_, i) => new Date(fallback.getTime() + i * 1000));
+  }
+
+  async function convertRawVitalCsvFile(file) {
+    const settings = getCsvSettings();
+    const { text, encoding } = await readFileTextWithEncodingGuess(file);
+    const detected = detectSeparatorAndHeader(text);
+    const parsed = parseDelimited(text, detected.sep, detected.headerIdx);
+    const headers = parsed.headers;
+    const rows = parsed.rows;
+    if (!rows.length) throw new Error('CSV에서 데이터 행을 찾지 못했습니다.');
+
+    const caseId = makeCaseIdFromName(file.name, true);
+    const startFromName = parseStartDateTimeFromName(file.name);
+    const detectedCols = detectVitalColumns(headers);
+    const dateTimes = buildDateTimes(rows, headers, file.name);
+    const vitalCols = ['HR','MAP','SBP','DBP','SpO2','PI','RR'];
+    const ranges = { HR:[20,250], MAP:[0,200], SBP:[0,300], DBP:[0,200], SpO2:[0,100], PI:[0,100], RR:[3,80] };
+
+    let vital = rows.map((row, i) => {
+      const out = { case_id: caseId, datetime: dateTimes[i] };
+      vitalCols.forEach(col => {
+        const source = detectedCols[col];
+        let value = source ? numericClean(row[source]) : NaN;
+        const [lo, hi] = ranges[col];
+        if (Number.isFinite(value) && (value < lo || value > hi)) value = NaN;
+        out[col] = value;
+      });
+      return out;
+    }).filter(r => r.datetime instanceof Date && !Number.isNaN(r.datetime.getTime()));
+
+    const rrVals = vital.map(r => r.RR).filter(Number.isFinite);
+    if (rrVals.length && (median(rrVals) < 5 || quantile(rrVals, 0.95) > 80)) vital.forEach(r => r.RR = NaN);
+
+    if (settings.filterByFilenameTime && startFromName) {
+      const lower = startFromName.getTime() - 3600000;
+      const upper = startFromName.getTime() + settings.maxHours * 3600000;
+      vital = vital.filter(r => r.datetime.getTime() >= lower && r.datetime.getTime() <= upper);
+    }
+    vital = vital.filter(r => vitalCols.some(c => Number.isFinite(r[c]))).sort((a, b) => a.datetime - b.datetime);
+    if (!vital.length) throw new Error('유효한 vital 값이 없습니다. 컬럼명 또는 CSV 구조를 확인하세요.');
+
+    let segmentNum = 0;
+    let prevMs = null;
+    let segmentStartMs = null;
+    vital.forEach(r => {
+      const ms = r.datetime.getTime();
+      if (prevMs === null || (ms - prevMs) / 1000 > settings.segmentGapSec || ms < prevMs) {
+        segmentNum += 1;
+        segmentStartMs = ms;
+      }
+      r.segment_num = segmentNum;
+      r.segment_id = `${caseId}_seg_${String(segmentNum).padStart(3, '0')}`;
+      r.elapsed_sec_in_segment = (ms - segmentStartMs) / 1000;
+      r.Minute = Math.floor(r.elapsed_sec_in_segment / 60);
+      prevMs = ms;
+    });
+
+    const groups = new Map();
+    vital.forEach(r => {
+      const key = `${r.case_id}|${r.segment_id}|${r.segment_num}|${r.Minute}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    });
+
+    let features = Array.from(groups.values()).map(group => {
+      const first = group[0];
+      const times = group.map(r => r.datetime.getTime());
+      const row = {
+        case_id: first.case_id,
+        segment_id: first.segment_id,
+        segment_num: first.segment_num,
+        Minute: first.Minute,
+        _start_ms: Math.min(...times),
+        _end_ms: Math.max(...times),
+        n_rows_with_any_vital: group.length
+      };
+      vitalCols.forEach(col => {
+        const vals = group.map(r => r[col]).filter(Number.isFinite);
+        row[`${col}_mean`] = mean(vals);
+        row[`${col}_min`] = vals.length ? Math.min(...vals) : NaN;
+        row[`${col}_max`] = vals.length ? Math.max(...vals) : NaN;
+        row[`${col}_std`] = stdSample(vals);
+        row[`${col}_median`] = median(vals);
+        row[`${col}_count`] = vals.length;
+      });
+      row[`n_MAP_below_${settings.mapThreshold}`] = group.filter(r => Number.isFinite(r.MAP) && r.MAP < settings.mapThreshold).length;
+      row.n_SpO2_below_90 = group.filter(r => Number.isFinite(r.SpO2) && r.SpO2 < 90).length;
+      row.n_HR_below_40 = group.filter(r => Number.isFinite(r.HR) && r.HR < 40).length;
+      row.n_HR_above_130 = group.filter(r => Number.isFinite(r.HR) && r.HR > 130).length;
+      row.n_RR_below_8 = group.filter(r => Number.isFinite(r.RR) && r.RR < 8).length;
+      row.n_RR_above_30 = group.filter(r => Number.isFinite(r.RR) && r.RR > 30).length;
+      return row;
+    }).sort((a, b) => a.segment_num - b.segment_num || a.Minute - b.Minute);
+
+    const expectedCounts = {};
+    vitalCols.forEach(col => {
+      const counts = features.map(r => r[`${col}_count`]).filter(v => Number.isFinite(v) && v > 0);
+      const expected = counts.length ? Math.max(quantile(counts, 0.75), 1) : NaN;
+      expectedCounts[col] = expected;
+      features.forEach(r => {
+        r[`${col}_expected_count_per_min`] = expected;
+        if (!Number.isFinite(expected) || expected === 0) {
+          r[`${col}_valid_ratio`] = NaN;
+          r[`${col}_missing_rate`] = NaN;
+        } else {
+          const ratio = Math.min(Math.max((r[`${col}_count`] || 0) / expected, 0), 1);
+          r[`${col}_valid_ratio`] = ratio;
+          r[`${col}_missing_rate`] = 1 - ratio;
+        }
+      });
+    });
+
+    const flatThresholds = { HR:0.1, MAP:0.1, SBP:0.1, DBP:0.1, SpO2:0.05, PI:0.001, RR:0.1 };
+    vitalCols.forEach(col => {
+      const expected = expectedCounts[col];
+      const minCount = (!Number.isFinite(expected) || expected === 0) ? 5 : Math.max(5, expected * 0.5);
+      features.forEach(r => {
+        const sd = Number.isFinite(r[`${col}_std`]) ? r[`${col}_std`] : 0;
+        r[`${col}_flatline_flag`] = ((r[`${col}_count`] || 0) >= minCount && sd <= flatThresholds[col]) ? 1 : 0;
+      });
+    });
+
+    const eventCols = [`n_MAP_below_${settings.mapThreshold}`, 'n_SpO2_below_90', 'n_HR_below_40', 'n_HR_above_130', 'n_RR_below_8', 'n_RR_above_30'];
+    features.forEach(r => eventCols.forEach(c => r[`${c}_ratio`] = r.n_rows_with_any_vital ? r[c] / r.n_rows_with_any_vital : NaN));
+
+    if (settings.makeFutureLabel) {
+      const labelCol = `label_next_${settings.futureHorizonMin}min_MAP_below_${settings.mapThreshold}`;
+      const bySeg = groupBy(features, r => String(r.segment_num));
+      Object.values(bySeg).forEach(segRows => {
+        segRows.sort((a, b) => a.Minute - b.Minute);
+        const eventVals = segRows.map(r => r[`n_MAP_below_${settings.mapThreshold}`] > 0 ? 1 : 0);
+        segRows.forEach((r, i) => {
+          const window = eventVals.slice(i + 1, i + 1 + settings.futureHorizonMin);
+          if (window.length < settings.futureHorizonMin && settings.labelIncompleteAsNa) r[labelCol] = NaN;
+          else r[labelCol] = window.length ? (Math.max(...window) > 0 ? 1 : 0) : NaN;
+        });
+      });
+    }
+
+    const segMinuteCounts = groupBy(features, r => r.segment_id);
+    const validSegments = new Set(Object.entries(segMinuteCounts).filter(([, arr]) => new Set(arr.map(r => r.Minute)).size >= settings.minSegmentMinutes).map(([id]) => id));
+    features = features.filter(r => validSegments.has(r.segment_id));
+
+    features.forEach(r => {
+      r.Minute_start_datetime_iso = formatDateTime(new Date(r._start_ms));
+      r.Minute_end_datetime_iso = formatDateTime(new Date(r._end_ms));
+      r.minute_duration_sec = (r._end_ms - r._start_ms) / 1000;
+      delete r._start_ms;
+      delete r._end_ms;
+    });
+
+    const frontCols = ['case_id','segment_id','segment_num','Minute','Minute_start_datetime_iso','Minute_end_datetime_iso','minute_duration_sec','n_rows_with_any_vital'];
+    const labelCols = Object.keys(features[0] || {}).filter(c => c.startsWith('label_'));
+    const middleCols = Object.keys(features[0] || {}).filter(c => !frontCols.includes(c) && !labelCols.includes(c));
+    const orderedCols = [...frontCols, ...middleCols, ...labelCols];
+    features = features.map(r => orderedCols.reduce((o, c) => { o[c] = csvSafeValue(r[c]); return o; }, {}));
+    const dictionary = orderedCols.map(c => ({ column: c, description: describeFeatureColumn(c) }));
+
+    return {
+      caseId, encoding, separator: detected.sep === '\t' ? 'tab' : detected.sep,
+      headerIdx: detected.headerIdx, detectedCols, expectedCounts, rowsRead: rows.length,
+      features, dictionary, columns: orderedCols,
+      segmentCount: new Set(features.map(r => r.segment_id)).size
+    };
+  }
+
+  function getCsvSettings() {
+    return {
+      segmentGapSec: Number($('#csvSegmentGapSec')?.value || 300),
+      filterByFilenameTime: $('#csvFilterByFilenameTime')?.checked ?? true,
+      maxHours: Number($('#csvMaxHours')?.value || 24),
+      makeFutureLabel: $('#csvFutureLabel')?.checked ?? true,
+      futureHorizonMin: Number($('#csvFutureHorizon')?.value || 5),
+      mapThreshold: Number($('#csvMapThreshold')?.value || 65),
+      labelIncompleteAsNa: $('#csvIncompleteFutureNa')?.checked ?? true,
+      minSegmentMinutes: Number($('#csvMinSegmentMinutes')?.value || 1)
+    };
+  }
+
+  function groupBy(arr, keyFn) {
+    return arr.reduce((acc, item) => {
+      const key = keyFn(item);
+      (acc[key] ||= []).push(item);
+      return acc;
+    }, {});
+  }
+
+  function formatDateTime(date) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
+  function csvSafeValue(value) {
+    if (value === null || value === undefined || value === '') return 'NA';
+    if (typeof value === 'number') return Number.isFinite(value) ? Number(value.toFixed(6)) : 'NA';
+    return value;
+  }
+
+  function describeFeatureColumn(col) {
+    if (col === 'case_id') return '분석 case ID. 예: SICU12_260619';
+    if (col === 'segment_id') return '5분 이상 끊김 기준으로 나눈 segment ID';
+    if (col === 'segment_num') return 'segment 번호';
+    if (col === 'Minute') return 'segment 시작 후 몇 번째 minute인지';
+    if (['Minute_start_datetime_iso','Minute_end_datetime_iso'].includes(col)) return '해당 1분 구간의 시작/끝 시각';
+    if (col === 'minute_duration_sec') return '해당 minute 구간 내 실제 관측 시간 길이';
+    if (col === 'n_rows_with_any_vital') return '해당 minute에서 하나 이상의 vital 값이 존재한 행 수';
+    if (col.endsWith('_mean')) return '1분 구간 평균값';
+    if (col.endsWith('_min')) return '1분 구간 최솟값';
+    if (col.endsWith('_max')) return '1분 구간 최댓값';
+    if (col.endsWith('_std')) return '1분 구간 표준편차';
+    if (col.endsWith('_median')) return '1분 구간 중앙값';
+    if (col.endsWith('_count')) return '1분 구간 해당 신호의 유효 측정 개수';
+    if (col.endsWith('_expected_count_per_min')) return '해당 신호의 1분당 기대 측정 개수';
+    if (col.endsWith('_valid_ratio')) return '해당 신호의 1분 구간 유효 측정 비율';
+    if (col.endsWith('_missing_rate')) return '해당 신호의 1분 구간 결측 비율';
+    if (col.endsWith('_flatline_flag')) return '해당 신호가 1분 동안 거의 변하지 않는지 여부';
+    if (col.startsWith('n_') && col.endsWith('_ratio')) return '특정 이상 조건 발생 비율';
+    if (col.startsWith('n_')) return '특정 이상 조건 발생 횟수';
+    if (col.startsWith('label_')) return '미래 예측용 label. 모델 입력 X에는 넣으면 안 됨';
+    return '';
+  }
+
+
+  function toFiniteNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function downsampleFeatureRows(rows, maxPoints = 90) {
+    const arr = Array.isArray(rows) ? rows : [];
+    if (arr.length <= maxPoints) return arr;
+    const step = Math.ceil(arr.length / maxPoints);
+    return arr.filter((_, idx) => idx % step === 0);
+  }
+
+  function buildSignalTrajectorySvg(rows, config = {}) {
+    const chartSignals = config.signals || ['HR', 'MAP', 'SpO2', 'RR'];
+    const colors = { HR:'#1d5d9b', MAP:'#0b8f8a', SpO2:'#6d5dfc', RR:'#f59e0b', SBP:'#175cd3', DBP:'#9a5b00' };
+    const usableRows = downsampleFeatureRows(rows || [], 90);
+    const width = 620, height = 260;
+    const pad = { left: 42, right: 16, top: 22, bottom: 34 };
+    const plotW = width - pad.left - pad.right;
+    const plotH = height - pad.top - pad.bottom;
+
+    const series = chartSignals.map(signal => {
+      const key = `${signal}_mean`;
+      const vals = usableRows.map((row, idx) => ({
+        idx,
+        minute: toFiniteNumber(row.Minute ?? row.minute ?? idx),
+        value: toFiniteNumber(row[key] ?? row[signal] ?? row.value),
+      })).filter(point => Number.isFinite(point.value));
+
+      if (vals.length < 2) return { signal, points:'', dots:'', color: colors[signal] || '#1d5d9b', min: NaN, max: NaN };
+      const min = Math.min(...vals.map(v => v.value));
+      const max = Math.max(...vals.map(v => v.value));
+      const span = max - min || 1;
+      const xDen = Math.max(1, usableRows.length - 1);
+      const xy = vals.map(point => {
+        const x = pad.left + (point.idx / xDen) * plotW;
+        const y = pad.top + (1 - ((point.value - min) / span)) * plotH;
+        return { x, y };
+      });
+      const pointText = xy.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      const dotStep = Math.max(1, Math.ceil(xy.length / 18));
+      const dots = xy.filter((_, i) => i % dotStep === 0).map(p => `<circle class="signal-trajectory-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.4" fill="${colors[signal] || '#1d5d9b'}"/>`).join('');
+      return { signal, points: pointText, dots, color: colors[signal] || '#1d5d9b', min, max };
+    });
+
+    const hasAnyLine = series.some(s => s.points);
+    const gridLines = [0,1,2,3,4].map(i => {
+      const y = pad.top + (i / 4) * plotH;
+      return `<line class="signal-trajectory-grid" x1="${pad.left}" y1="${y.toFixed(1)}" x2="${width - pad.right}" y2="${y.toFixed(1)}" />`;
+    }).join('');
+    const polylines = series.filter(s => s.points).map(s => `<polyline class="signal-trajectory-line" points="${s.points}" stroke="${s.color}"/>${s.dots}`).join('');
+    const legend = series.map(s => {
+      const range = Number.isFinite(s.min) ? `${Number(s.min).toFixed(1)}–${Number(s.max).toFixed(1)}` : '데이터 없음';
+      return `<span class="signal-legend-chip"><span class="signal-legend-color" style="background:${s.color}"></span>${escapeHtml(s.signal)} <span style="color:#94a3b8">${escapeHtml(range)}</span></span>`;
+    }).join('');
+    const lastMinute = rows?.length ? (rows[rows.length - 1].Minute ?? rows.length - 1) : 0;
+    const emptyText = config.emptyText || '궤적을 그릴 수 있는 feature row가 아직 없습니다.';
+
+    return `<div class="signal-trajectory-card">
+      <div class="signal-trajectory-head"><div><strong>${escapeHtml(config.title || '신호 궤적 요약')}</strong><span>${escapeHtml(config.subtitle || '각 신호는 패널 안에서 개별 정규화되어 QC용 흐름만 빠르게 확인합니다.')}</span></div>${config.badge ? badge(config.badge, 'teal') : ''}</div>
+      <svg class="signal-trajectory-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="신호별 시간 궤적">
+        ${gridLines}
+        <line class="signal-trajectory-grid" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" />
+        <text class="signal-trajectory-axis" x="${pad.left}" y="${height - 10}">0 min</text>
+        <text class="signal-trajectory-axis" x="${width - 76}" y="${height - 10}">${escapeHtml(lastMinute)} min</text>
+        <text class="signal-trajectory-axis" x="8" y="${pad.top + 8}">높음</text>
+        <text class="signal-trajectory-axis" x="8" y="${height - pad.bottom}">낮음</text>
+        ${hasAnyLine ? polylines : `<text class="signal-trajectory-empty" x="${width/2}" y="${height/2}" text-anchor="middle">${escapeHtml(emptyText)}</text>`}
+      </svg>
+      <div class="signal-trajectory-legend">${legend}</div>
+    </div>`;
+  }
+
+  function summarizeFeatureRowsForTrajectory(rows) {
+    const arr = Array.isArray(rows) ? rows : [];
+    const signals = ['HR','MAP','SpO2','RR'];
+    const validity = signals.map(signal => {
+      const ratios = arr.map(row => toFiniteNumber(row[`${signal}_valid_ratio`])).filter(Number.isFinite);
+      const ratio = ratios.length ? ratios.reduce((a,b)=>a+b,0) / ratios.length : NaN;
+      return { signal, ratio };
+    });
+    const eventKeys = Object.keys(arr[0] || {}).filter(k => k.startsWith('n_') && !k.endsWith('_ratio'));
+    const events = eventKeys.map(key => ({ key, total: arr.reduce((sum, row) => sum + (toFiniteNumber(row[key]) || 0), 0) }))
+      .filter(item => item.total > 0).sort((a,b) => b.total - a.total).slice(0, 6);
+    return { validity, events };
+  }
+
+  function renderSignalTrajectoryPanel(container, rows, fileName, config = {}) {
+    if (!container) return;
+    const arr = Array.isArray(rows) ? rows : [];
+    if (!arr.length) {
+      container.innerHTML = buildSignalTrajectorySvg([], {
+        title: config.title || '신호 궤적 요약',
+        subtitle: config.subtitle || '실제 feature row가 연결되면 HR, MAP, SpO2, RR 흐름을 보여줍니다.',
+        emptyText: config.emptyText || '아직 표시할 실제 데이터가 없습니다.',
+        badge: config.badge || 'QC preview'
+      });
+      return;
+    }
+    const summary = summarizeFeatureRowsForTrajectory(arr);
+    const validTags = summary.validity.map(item => {
+      const pct = Number.isFinite(item.ratio) ? Math.round(item.ratio * 100) + '%' : 'NA';
+      return `<span class="signal-event-tag">${escapeHtml(item.signal)} valid ${escapeHtml(pct)}</span>`;
+    }).join('');
+    const eventTags = summary.events.length ? summary.events.map(item => `<span class="signal-event-tag warn">${escapeHtml(item.key.replaceAll('_',' '))}: ${Number(item.total).toLocaleString()}</span>`).join('') : '<span class="signal-event-tag">이벤트 없음</span>';
+    container.innerHTML = buildSignalTrajectorySvg(arr, {
+      title: config.title || '신호 궤적 요약',
+      subtitle: `${fileName || 'feature rows'} · ${arr.length.toLocaleString()} minute rows · QC용 정규화 궤적`,
+      badge: config.badge || 'QC preview'
+    }) + `<div class="signal-event-tags">${validTags}${eventTags}</div>`;
+  }
+
+  function renderCsvConversionResult(result) {
+    if (result?.sourceType === 'raw .vital') {
+      setCsvStatus(`변환 작업 생성: ${result.sourceFile} → ${result.caseId}_coding_ready_1min_features.csv`, 'teal');
+      const summary = $('#csvFeatureSummary');
+      if (summary) {
+        summary.innerHTML = `<dl class="kv"><dt>case_id</dt><dd>${escapeHtml(result.caseId)}</dd><dt>원본 형식</dt><dd>.vital</dd><dt>출력 형식</dt><dd>공란 없는 1분 coding-ready CSV</dd><dt>예상 컬럼 수</dt><dd>${result.columns.length.toLocaleString()}개</dd><dt>time bin</dt><dd>${result.timeBinSec}초</dd><dt>상태</dt><dd>백엔드 파서 연결 대기</dd></dl>`;
+      }
+      const mapBody = $('#csvColumnMapBody');
+      if (mapBody) {
+        const rows = ['HR','MAP','SBP','DBP','SpO2','PI','RR'].map(v => `<tr><td>${v}</td><td>.vital track 자동 탐색</td><td>${badge('파서에서 매칭', 'blue')}</td></tr>`).join('');
+        mapBody.innerHTML = rows;
+      }
+      const head = $('#csvFeaturePreviewHead');
+      const previewBody = $('#csvFeaturePreviewBody');
+      if (head) head.innerHTML = '<tr><th>출력 컬럼</th><th>설명</th></tr>';
+      if (previewBody) previewBody.innerHTML = result.dictionary.slice(0, 12).map(row => `<tr><td>${escapeHtml(row.column)}</td><td>${escapeHtml(row.description)}</td></tr>`).join('');
+      renderSignalTrajectoryPanel($('#vitalTrajectorySummary'), [], result.sourceFile, {title:'신호 궤적 QC', subtitle:'백엔드 .vital 파서가 1분 feature row를 반환하면 이 영역에 실제 궤적이 표시됩니다.', emptyText:'아직 실제 궤적 데이터가 없습니다.', badge:'.vital parser 대기'});
+      return;
+    }
+    setCsvStatus(`변환 완료: ${result.features.length}분 row, ${result.columns.length}개 컬럼, ${result.segmentCount}개 segment 생성`, 'teal');
+    const summary = $('#csvFeatureSummary');
+    if (summary) {
+      summary.innerHTML = `<dl class="kv"><dt>case_id</dt><dd>${escapeHtml(result.caseId)}</dd><dt>읽은 행</dt><dd>${result.rowsRead.toLocaleString()}행</dd><dt>feature row</dt><dd>${result.features.length.toLocaleString()}행</dd><dt>컬럼 수</dt><dd>${result.columns.length.toLocaleString()}개</dd><dt>encoding</dt><dd>${escapeHtml(result.encoding)}</dd><dt>separator</dt><dd>${escapeHtml(result.separator)}</dd></dl>`;
+    }
+    const mapBody = $('#csvColumnMapBody');
+    if (mapBody) {
+      mapBody.innerHTML = Object.entries(result.detectedCols).map(([std, src]) => `<tr><td>${escapeHtml(std)}</td><td>${escapeHtml(src || '미탐지')}</td><td>${src ? badge('사용', 'green') : badge('NaN 생성', 'gray')}</td></tr>`).join('');
+    }
+    const previewBody = $('#csvFeaturePreviewBody');
+    if (previewBody) {
+      const previewCols = ['case_id','segment_id','Minute','Minute_start_datetime_iso','HR_mean','MAP_mean','SBP_mean','DBP_mean','SpO2_mean',`label_next_${getCsvSettings().futureHorizonMin}min_MAP_below_${getCsvSettings().mapThreshold}`].filter(c => result.columns.includes(c));
+      const head = $('#csvFeaturePreviewHead');
+      if (head) head.innerHTML = `<tr>${previewCols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr>`;
+      previewBody.innerHTML = result.features.slice(0, 8).map(row => `<tr>${previewCols.map(c => `<td>${escapeHtml(row[c] ?? '')}</td>`).join('')}</tr>`).join('') || `<tr class="empty-row"><td colspan="10">미리보기할 행이 없습니다.</td></tr>`;
+    }
+    renderSignalTrajectoryPanel($('#vitalTrajectorySummary'), result.features, result.caseId, {title:'신호 궤적 QC', badge:'변환 완료'});
+  }
+
+  function initExportCenter() {
+    initCsvFeatureConverter();
+    const card = cardByHeading('내보내기 대상');
+    if (!card) return;
+    const selects = $$('select', card);
+    const exportBtn = $('button', card);
+    removeDisabledAction(exportBtn);
+    const updateOptions = () => {
+      const state = readState();
+      const targetType = selects[0]?.value || '';
+      if (!selects[1]) return;
+      if (targetType.includes('연구 태그')) {
+        selects[1].innerHTML = option('', '전체 연구 태그') + state.tags.map(t => option(t.id, t.name)).join('');
+      } else if (targetType.includes('Vital')) {
+        selects[1].innerHTML = option('', '전체 Vital 파일') + state.vitalFiles.map(f => option(f.id, f.name)).join('');
+      } else if (targetType.includes('분석')) {
+        selects[1].innerHTML = option('', '전체 분석 결과') + state.analyses.map(a => option(a.id, a.name)).join('');
+      } else {
+        selects[1].innerHTML = option('', '전체 metadata');
+      }
+    };
+    selects[0]?.addEventListener('change', updateOptions);
+    updateOptions();
+    exportBtn?.addEventListener('click', () => {
+      const state = readState();
+      const targetType = selects[0]?.value || 'metadata';
+      const selectedId = selects[1]?.value || '';
+      const fileFormat = selects[2]?.value || 'CSV';
+      let rows = [];
+      if (targetType.includes('Vital')) rows = state.vitalFiles.filter(f => !selectedId || f.id === selectedId);
+      else if (targetType.includes('분석')) rows = state.analyses.filter(a => !selectedId || a.id === selectedId);
+      else if (targetType.includes('audit')) rows = state.audit;
+      else if (targetType.includes('연구 태그')) {
+        rows = [
+          ...state.variables.filter(v => !selectedId || v.tagId === selectedId).map(v => ({...v, internal: JSON.stringify(v.internal || {})})),
+          ...(state.variableDefinitions || []).filter(v => !selectedId || !v.tagId || v.tagId === selectedId).map(v => ({...v, status: '변수 사전', internal: ''}))
+        ];
+      } else rows = [{ tags: state.tags.length, axes: state.axes.length, vitalFiles: state.vitalFiles.length, variables: state.variables.length, analyses: state.analyses.length }];
+      if (!rows.length) return toast('내보낼 데이터가 없습니다.', 'gray');
+      const ext = fileFormat.includes('JSON') ? 'json' : 'csv';
+      const content = ext === 'json' ? JSON.stringify(rows, null, 2) : toCsv(rows.map(flattenForCsv));
+      const filename = `excite_export_${Date.now()}.${ext}`;
+      downloadText(filename, content, ext === 'json' ? 'application/json;charset=utf-8' : 'text/csv;charset=utf-8');
+      addExportRow(filename, fileFormat);
+      addAudit('analysis export', 'export', filename);
+      toast('내보내기 파일을 생성했습니다.');
+    });
+  }
+
+  function flattenForCsv(obj) {
+    const out = {};
+    Object.entries(obj || {}).forEach(([k, v]) => {
+      out[k] = typeof v === 'object' && v !== null ? JSON.stringify(v) : v;
+    });
+    return out;
+  }
+
+  function addExportRow(filename, format) {
+    const body = cardByHeading('최근 내보내기')?.querySelector('tbody');
+    if (!body) return;
+    if ($('.empty-row', body)) body.innerHTML = '';
+    body.insertAdjacentHTML('afterbegin', `<tr><td>${escapeHtml(filename)}</td><td>${escapeHtml(format)}</td><td>${escapeHtml(USER)}</td><td>${badge('생성 완료', 'green')}</td></tr>`);
+  }
+
+  function toCsv(rows) {
+    if (!rows.length) return '';
+    const headers = Object.keys(rows[0]);
+    const cell = v => `"${String(v ?? '').replaceAll('"', '""')}"`;
+    return [headers.join(','), ...rows.map(row => headers.map(h => cell(row[h])).join(','))].join('\n');
+  }
+
+  function initResearchProjects() {
+    const saveBtn = $('#projectSaveBtn');
+    removeDisabledAction(saveBtn);
+    saveBtn?.addEventListener('click', saveResearchProject);
+    renderResearchProjects();
+  }
+
+  function saveResearchProject() {
+    const card = cardByHeading('새 연구 기본정보');
+    if (!card) return;
+    const inputs = $$('input', card);
+    const title = inputs[0]?.value.trim();
+    const topic = inputs[1]?.value.trim() || '';
+    const irb = inputs[2]?.value.trim() || '';
+    const objective = $('textarea', card)?.value.trim() || '';
+    const status = $('select', card)?.value || '준비 중';
+    if (!title) return toast('연구 제목을 입력하세요.', 'gray');
+    const tagKeyword = title.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_가-힣]/g, '').slice(0, 40) || uid('TAG');
+    patchState(s => {
+      const projectId = uid('PROJ');
+      s.projects.unshift({ id: projectId, title, topic, objective, irb, status, createdAt: nowText(), createdBy: USER });
+      if (!s.tags.some(t => t.name === tagKeyword)) {
+        s.tags.unshift({ id: uid('TAG'), projectId, name: tagKeyword, status, color: '#0b8f8a', description: objective || topic, irb, matchUnit: '복합 단위', createdBy: USER, createdAt: nowText(), updatedAt: nowText() });
+      }
+    });
+    $$('input, textarea', card).forEach(el => el.value = '');
+    renderResearchProjects();
+    addAudit('research project create', 'research_project', title);
+    toast('연구 기본정보와 연구 구분 태그를 저장했습니다.');
+  }
+
+  function renderResearchProjects(state = readState()) {
+    const body = $('#researchProjectBody');
+    if (!body) return;
+    if (!state.projects.length) return setTableEmpty(body, 7, '아직 생성된 연구가 없습니다.', '연구 제목과 목적을 저장하면 해당 연구를 구분하는 태그가 함께 생성됩니다.');
+    body.innerHTML = state.projects.map(p => {
+      const tag = state.tags.find(t => t.projectId === p.id || t.name === p.title.replace(/\s+/g, '_'));
+      const subjectCount = state.studyPatients.filter(sp => sp.tagId === tag?.id).length;
+      return `<tr><td>${escapeHtml(p.title)}</td><td>${escapeHtml(p.topic || '-')}</td><td>${escapeHtml(p.irb || '-')}</td><td>${badge(p.status || '준비 중','blue')}</td><td>${tag ? badge(tag.name,'teal') : badge('태그 없음','gray')}</td><td>${subjectCount}명</td><td><a class="btn ghost" href="patient-upload.html">대상자/자료 배정</a></td></tr>`;
+    }).join('');
+  }
+
+
+  document.addEventListener('DOMContentLoaded', () => {
+    commonInit();
+    const page = currentPage();
+    if (page === 'login.html') initLogin();
+    if (page === 'signup.html') initSignup();
+    if (page === 'dashboard.html' || page === 'index.html') refreshDashboard();
+    if (page === 'vital-upload.html') initVitalUpload();
+    if (page === 'vital-registry.html') initVitalRegistry();
+    if (page === 'tag-manager.html') initTagManager();
+    if (page === 'patient-upload.html') initPatientUpload();
+    if (page === 'tag-assignment.html') initTagAssignment();
+    if (page === 'tag-detail.html') initTagDetail();
+    if (page === 'statistical-analysis.html') initStatisticalAnalysis();
+    if (page === 'analysis-results.html') initAnalysisResults();
+    if (page === 'audit-log.html') initAuditLog();
+    if (page === 'patient-matching.html') initPatientMatching();
+    if (page === 'export-center.html') initExportCenter();
+    if (page === 'members.html') initMembers();
+    if (page === 'research-projects.html') initResearchProjects();
+    bindFallbackDisabledButtons();
+  });
+})();

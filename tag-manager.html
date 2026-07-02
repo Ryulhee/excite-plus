@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>태그 관리 | EXCITE plus</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <a class="brand-inline" href="dashboard.html">
+    <span class="logo-mark">E+</span>
+    <span><span class="brand-title">EXCITE plus</span></span>
+  </a>
+  <nav class="top-nav">
+    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
+      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
+    </div></div>
+    <a href="research-projects.html" data-href="research-projects.html">연구</a>
+    <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
+    <a href="tag-manager.html" data-href="tag-manager.html">태그</a>
+    <a href="statistical-analysis.html" data-href="statistical-analysis.html">통계 분석</a>
+    <a href="analysis-results.html" data-href="analysis-results.html">결과</a>
+    <a href="members.html" data-href="members.html">관리</a>
+  </nav>
+  <div class="user-area"><span>로그인 사용자</span><span class="avatar">E+</span><a href="login.html">로그아웃</a></div>
+</header>
+<div class="shell">
+<aside class="sidebar"><div class="title">작업공간</div>
+  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
+  <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
+  <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
+  <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
+  <a class="side-link" data-href="tag-manager.html" href="tag-manager.html"><strong>태그 관리</strong><span>연구 태그와 연구 내 분류값 관리</span></a>
+  <a class="side-link" data-href="statistical-analysis.html" href="statistical-analysis.html"><strong>통계 분석</strong><span>x축·y축·방법·유의성 확인</span></a>
+  <a class="side-link" data-href="analysis-results.html" href="analysis-results.html"><strong>결과</strong><span>저장된 분석 결과와 export</span></a>
+  <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
+</aside>
+<main class="main">
+<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>태그 관리</h2><p>태그는 연구를 구분하는 큰 라벨입니다. Day, 대조군, 처치군 같은 값은 태그 안에서 관리되는 연구 내 분류축과 표준값으로 저장합니다.</p></section>
+
+<section class="grid four">
+  <div class="card metric"><div><div class="value">0개</div><div class="label">활성 연구 태그</div></div><span class="delta">대기</span></div>
+  <div class="card metric"><div><div class="value">0개</div><div class="label">연구 내 분류축</div></div><span class="delta">대기</span></div>
+  <div class="card metric"><div><div class="value">0개</div><div class="label">표준 분류값</div></div><span class="delta">대기</span></div>
+  <div class="card metric"><div><div class="value">0개</div><div class="label">미정리 자유입력값</div></div><span class="delta">대기</span></div>
+</section>
+
+<section class="split narrow-concept">
+  <div class="grid">
+    <div class="card">
+      <div class="toolbar"><h3>새 연구 태그 만들기</h3><span class="badge teal">연구 구분용 큰 라벨</span></div>
+      <div class="grid three">
+        <div class="field"><label>태그명, 키워드</label><input class="input" placeholder="예: ECMO_Vital_DB, Lactate_Clearance, Pilot_ABP"></div>
+        <div class="field"><label>연구 상태</label><select><option>준비 중</option><option>자료 수집 중</option><option>분석 중</option><option>완료</option><option>보관</option></select></div>
+        <div class="field"><label>태그 색상</label><select><option>Navy</option><option>Teal</option><option>Blue</option><option>Gray</option><option>Warning</option></select></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>설명, 목적/포함 기준</label><textarea rows="3" placeholder="이 연구 태그의 목적, 포함할 대상, 제외 기준, 사용할 자료 범위를 적습니다."></textarea></div>
+      <div class="grid two" style="margin-top:12px">
+        <div class="field"><label>IRB / 과제 번호, 선택</label><input class="input" placeholder="필요 시 입력"></div>
+        <div class="field"><label>기본 매칭 단위</label><select><option>환자 단위</option><option>연구 이벤트 단위</option><option>Vital file 단위</option><option>Dataset 단위</option><option>복합 단위</option></select></div>
+      </div>
+      <div class="callout" style="margin-top:14px">Day 2, 대조군, 처치군은 연구 태그명이 아닙니다. 이 값들은 아래의 ‘연구 내 분류축’에서 controlled vocabulary로 관리합니다.</div>
+      <div class="toolbar" style="margin-top:14px"><button class="btn secondary" data-disabled-action="백엔드 연결 후 미리보기가 활성화됩니다.">중복 검사</button><button class="btn teal" data-disabled-action="저장 기능은 백엔드 연결 후 활성화됩니다.">연구 태그 저장</button></div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar"><h3>연구 내 분류축 설계</h3><span class="badge blue">연구 태그 안의 세부 분류</span></div>
+      <div class="grid three">
+        <div class="field"><label>분류축 이름</label><input class="input" placeholder="예: Day, Group, Visit, Stage, Outcome"></div>
+        <div class="field"><label>입력 방식</label><select><option>드롭다운만 허용</option><option>드롭다운 + 관리자 새 값 추가</option><option>자유 입력 후 표준값 매핑</option></select></div>
+        <div class="field"><label>분류축 수준</label><select><option>환자 단위</option><option>연구 이벤트 단위</option><option>Day/visit 단위</option><option>Vital file 단위</option><option>관측값 단위</option></select></div>
+      </div>
+      <div class="grid two" style="margin-top:12px">
+        <div class="field"><label>표준 분류값</label><input class="input" placeholder="예: Day 0, Day 1, Day 2 또는 Control, Treatment"></div>
+        <div class="field"><label>동의어/오타 매핑</label><input class="input" placeholder="예: 2days, day2, D2 → Day 2"></div>
+      </div>
+      <div class="direct-entry">
+        <div class="direct-entry-title"><strong>표준값 직접 작성</strong><span class="badge gray">드롭다운 후보</span></div>
+        <div class="grid three">
+          <div class="field"><label>직접 작성 분류축</label><input class="input" placeholder="예: ECMO day, dose group, sample timing"></div>
+          <div class="field"><label>대표 표준값</label><input class="input" placeholder="예: Day 2, Control, High lactate"></div>
+          <div class="field"><label>동의어</label><input class="input" placeholder="예: D2, day2, 2days"></div>
+        </div>
+        <div class="helper">직접 작성한 값은 이후 태그 부여/연구자료 입력 화면에서 드롭다운 후보로 사용할 수 있게 합니다.</div>
+      </div>
+      <div class="toolbar" style="margin-top:14px"><button class="btn ghost" data-disabled-action="백엔드 연결 후 분류축 추가가 활성화됩니다.">분류축 추가</button><button class="btn teal" data-disabled-action="백엔드 연결 후 표준값 저장이 활성화됩니다.">표준값 저장</button></div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar"><h3>연구 태그 목록</h3><span class="badge gray">데이터 없음</span></div>
+      <div class="table-wrap"><table><thead><tr><th>연구 태그</th><th>설명</th><th>상태</th><th>대상 수</th><th>Vital 수</th><th>연구 내 분류축</th><th>최근 수정</th><th>작업</th></tr></thead><tbody><tr class="empty-row"><td colspan="8"><strong>아직 생성된 연구 태그가 없습니다.</strong><br><span>연구를 구분할 큰 태그를 만든 뒤, 그 태그 안에 Day/group 같은 연구 내 분류축을 설계합니다.</span></td></tr></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar"><h3>연구 내 분류축 / 표준값 목록</h3><button class="btn ghost" data-disabled-action="표준값 추가 기능은 백엔드 연결 후 활성화됩니다.">표준값 추가</button></div>
+      <div class="table-wrap"><table><thead><tr><th>연구 태그</th><th>분류축</th><th>표준값</th><th>허용 동의어</th><th>수준</th><th>입력 방식</th><th>작업</th></tr></thead><tbody><tr class="empty-row"><td colspan="7"><strong>아직 등록된 연구 내 분류축이 없습니다.</strong><br><span>나중에 2days/day2/D2처럼 같은 의미가 다르게 저장되지 않도록 표준값을 정의합니다.</span></td></tr></tbody></table></div>
+    </div>
+  </div>
+
+  <aside class="card preview-card concept-card">
+    <div class="toolbar compact-toolbar"><h3>정리된 개념</h3><span class="badge gray">접어서 보기</span></div>
+    <div class="concept-summary">
+      <strong>태그는 연구 이름표</strong>
+      <span>Day·group·visit은 태그가 아니라, 선택한 연구 태그 안에서 환자/파일/시점에 붙는 분류값입니다.</span>
+    </div>
+    <details open>
+      <summary>핵심 구조</summary>
+      <div class="mini-list compact-mini">
+        <div class="mini-item"><strong>연구 태그</strong><span>여러 연구를 구분하는 큰 라벨입니다.</span></div>
+        <div class="mini-item"><strong>연구 내 분류값</strong><span>Day, Group, Visit, Stage, ECMO mode 등입니다.</span></div>
+        <div class="mini-item"><strong>표준값</strong><span>Day 2, Control처럼 드롭다운으로 통일할 값입니다.</span></div>
+      </div>
+    </details>
+    <details>
+      <summary>2026 preset</summary>
+      <div class="mini-item"><strong>총정리본 기반</strong><span>ECMO episode, timepoint, group, lab, ventilator, outcome, microbiology 구조를 한 번에 만듭니다.</span></div>
+    </details>
+    <button class="btn teal concept-btn" id="seed2026TemplateBtn">2026 ECMO 연구 태그 구조 만들기</button>
+  </aside>
+</section>
+<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
+</main>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>

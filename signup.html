@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>회원가입 | EXCITE plus</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body class="login-body">
+<section class="login-card signup-card">
+  <div class="brand">
+    <span class="logo-mark">E+</span>
+    <div><h1>EXCITE plus</h1><p>회원가입 신청</p></div>
+  </div>
+  <p>EXCITE 내부 연구팀 사용자를 위한 가입 신청 화면입니다. 신청 후 관리자가 승인하면 사용할 수 있습니다.</p>
+
+  <div class="form-stack" style="margin-top:20px">
+    <div class="grid two compact-form">
+      <div class="field"><label>이름</label><input id="signupName" class="input" placeholder="이름을 입력하세요" /></div>
+      <div class="field"><label>이메일</label><input id="signupEmail" class="input" type="email" placeholder="example@hospital.ac.kr" /></div>
+    </div>
+    <div class="grid two compact-form">
+      <div class="field"><label>비밀번호</label><input id="signupPassword" class="input" type="password" placeholder="비밀번호" /></div>
+      <div class="field"><label>비밀번호 확인</label><input id="signupPasswordConfirm" class="input" type="password" placeholder="비밀번호 재입력" /></div>
+    </div>
+    <div class="grid two compact-form">
+      <div class="field"><label>요청 역할</label><select id="signupRole"><option value="">역할 선택</option><option>Admin</option><option>Project Lead</option><option>Data Manager</option><option>Analyst</option><option>Viewer</option></select></div>
+      <div class="field"><label>소속</label><input id="signupAffiliation" class="input" placeholder="예: 전남대학교병원 / EXCITE" /></div>
+    </div>
+    <div class="field"><label>가입 목적 / 사용할 연구</label><textarea id="signupReason" rows="4" placeholder="예: ECMO Vital 파일 업로드 및 태그 기반 분석"></textarea></div>
+    <button id="signupSubmit" class="btn teal" type="button">가입 신청 저장</button>
+  </div>
+
+  <div class="login-links">
+    <a href="login.html">로그인으로 돌아가기</a>
+  </div>
+</section>
+<script src="assets/app.js"></script>
+</body>
+</html>

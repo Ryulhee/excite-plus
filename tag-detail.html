@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>태그 상세 | EXCITE plus</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <a class="brand-inline" href="dashboard.html">
+    <span class="logo-mark">E+</span>
+    <span><span class="brand-title">EXCITE plus</span></span>
+  </a>
+  <nav class="top-nav">
+    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
+      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
+    </div></div>
+    <a href="research-projects.html" data-href="research-projects.html">연구</a>
+    <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
+    <a href="tag-manager.html" data-href="tag-manager.html">태그</a>
+    <a href="statistical-analysis.html" data-href="statistical-analysis.html">통계 분석</a>
+    <a href="analysis-results.html" data-href="analysis-results.html">결과</a>
+    <a href="members.html" data-href="members.html">관리</a>
+  </nav>
+  <div class="user-area"><span>로그인 사용자</span><span class="avatar">E+</span><a href="login.html">로그아웃</a></div>
+</header>
+<div class="shell">
+<aside class="sidebar"><div class="title">작업공간</div>
+  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
+  <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
+  <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
+  <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
+  <a class="side-link" data-href="tag-manager.html" href="tag-manager.html"><strong>태그 관리</strong><span>연구 태그와 연구 내 분류값 관리</span></a>
+  <a class="side-link" data-href="statistical-analysis.html" href="statistical-analysis.html"><strong>통계 분석</strong><span>x축·y축·방법·유의성 확인</span></a>
+  <a class="side-link" data-href="analysis-results.html" href="analysis-results.html"><strong>결과</strong><span>저장된 분석 결과와 export</span></a>
+  <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
+</aside>
+<main class="main">
+<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>태그 상세</h2><p>특정 연구 태그 안에 어떤 환자·파일·Day·group·변수 데이터가 들어 있는지 확인합니다.</p></section>
+
+<section class="grid four"><div class="card metric"><div><div class="value">0명</div><div class="label">포함 대상자</div></div><span class="delta">대기</span></div><div class="card metric"><div><div class="value">0개</div><div class="label">연구 이벤트</div></div><span class="delta">대기</span></div><div class="card metric"><div><div class="value">0개</div><div class="label">Vital 파일</div></div><span class="delta">대기</span></div><div class="card metric"><div><div class="value">0개</div><div class="label">연구 내 분류값</div></div><span class="delta">대기</span></div></section>
+<section class="split"><div class="grid"><div class="card"><div class="toolbar"><h3>연구 태그 메타데이터</h3><a class="btn secondary" href="statistical-analysis.html">이 태그로 분석 시작</a></div><dl class="kv"><dt>연구 태그</dt><dd>선택된 태그 없음</dd><dt>설명</dt><dd>없음</dd><dt>상태</dt><dd>없음</dd><dt>기본 매칭 단위</dt><dd>없음</dd><dt>IRB / 과제 번호</dt><dd>없음</dd></dl></div>
+<div class="card"><h3>태그 내부 분류 구조</h3><div class="table-wrap"><table><thead><tr><th>분류축</th><th>표준값</th><th>동의어</th><th>수준</th><th>입력 방식</th></tr></thead><tbody><tr class="empty-row"><td colspan="5"><strong>선택된 연구 태그의 내부 분류축이 없습니다.</strong><br><span>예: Day = Day 0/Day 1/Day 2, Group = Control/Treatment 같은 구조가 여기에 표시됩니다.</span></td></tr></tbody></table></div></div>
+<div class="card"><h3>태그에 포함된 데이터 매트릭스</h3><div class="table-wrap"><table><thead><tr><th>대상 ID</th><th>연구 이벤트</th><th>Vital file</th><th>Day/visit</th><th>Group</th><th>변수 수</th><th>관측값 수</th><th>최근 업데이트</th></tr></thead><tbody><tr class="empty-row"><td colspan="8"><strong>선택된 태그 또는 포함된 데이터가 없습니다.</strong><br><span>태그가 부여되면 한 환자 안에서 Day별·group별·파일별 데이터 존재 여부를 확인할 수 있습니다.</span></td></tr></tbody></table></div></div></div>
+<aside class="card preview-card"><h3>태그 선택</h3><div class="field"><label>상세 확인할 연구 태그</label><select><option>등록된 연구 태그가 없습니다.</option></select></div><div class="empty-state" style="margin-top:14px"><strong>태그를 먼저 생성하세요.</strong><span>태그 관리에서 연구 태그를 만들고, 태그 내부 분류축과 표준값을 설계한 뒤 사용할 수 있습니다.</span></div></aside></section>
+<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
+</main>
+</div>
+<script src="assets/app.js"></script>
+</body>
+</html>
