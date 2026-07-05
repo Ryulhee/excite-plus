@@ -4,6 +4,18 @@
 (function () {
   const STORE_KEY = 'excite_plus_vitaldb_state_v2';
   const USER = '로그인 사용자';
+  const BOOTSTRAP_ADMIN = {
+    id: 'USER_BOOTSTRAP_ADMIN',
+    name: '초기 관리자',
+    username: 'Admin_cs',
+    email: '',
+    password: 'admin1q2w3e',
+    role: 'Admin',
+    affiliation: 'EXCITE',
+    status: '활성',
+    createdAt: 'bootstrap',
+    lastLogin: '-'
+  };
 
   const DEFAULT_STATE = {
     tags: [],
@@ -26,13 +38,24 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
+  function ensureBootstrapAdmin(state) {
+    if (!Array.isArray(state.users)) state.users = [];
+    const existing = state.users.find(u => u.id === BOOTSTRAP_ADMIN.id || (u.username || '').toLowerCase() === BOOTSTRAP_ADMIN.username.toLowerCase());
+    if (existing) {
+      Object.assign(existing, BOOTSTRAP_ADMIN);
+    } else {
+      state.users.unshift(Object.assign({}, BOOTSTRAP_ADMIN));
+    }
+    return state;
+  }
+
   function readState() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORE_KEY));
-      return Object.assign({}, DEFAULT_STATE, parsed || {});
+      return ensureBootstrapAdmin(Object.assign({}, DEFAULT_STATE, parsed || {}));
     } catch (error) {
       console.warn('state read failed', error);
-      return structuredClone(DEFAULT_STATE);
+      return ensureBootstrapAdmin(structuredClone(DEFAULT_STATE));
     }
   }
 
@@ -237,14 +260,16 @@
     const submit = $('#loginSubmit');
     if (!submit) return;
     submit.addEventListener('click', () => {
-      const email = ($('#loginEmail')?.value || '').trim().toLowerCase();
+      const loginId = ($('#loginEmail')?.value || '').trim();
+      const loginKey = loginId.toLowerCase();
       const password = $('#loginPassword')?.value || '';
       const state = readState();
-      const user = (state.users || []).find(u => (u.email || '').toLowerCase() === email);
-      const pending = (state.signupRequests || []).find(u => (u.email || '').toLowerCase() === email && u.status === '승인 대기');
+      const matchesLoginId = u => (u.username || '').toLowerCase() === loginKey || (u.email || '').toLowerCase() === loginKey;
+      const user = (state.users || []).find(matchesLoginId);
+      const pending = (state.signupRequests || []).find(u => (u.email || '').toLowerCase() === loginKey && u.status === '승인 대기');
 
-      if (!email && !password) {
-        location.href = 'dashboard.html';
+      if (!loginId || !password) {
+        toast('아이디와 비밀번호를 입력해 주세요. 초기 관리자: Admin_cs / admin1q2w3e', 'yellow');
         return;
       }
       if (pending) {
@@ -252,12 +277,16 @@
         return;
       }
       if (user && user.password === password && user.status === '활성') {
-        localStorage.setItem('excite_plus_current_user', JSON.stringify({ name: user.name, email: user.email, role: user.role }));
-        addAudit('login', 'user', `${user.email} 로그인`);
+        patchState(s => {
+          const found = (s.users || []).find(matchesLoginId);
+          if (found) found.lastLogin = nowText();
+        });
+        localStorage.setItem('excite_plus_current_user', JSON.stringify({ name: user.name, username: user.username || '', email: user.email || '', role: user.role }));
+        addAudit('login', 'user', `${user.username || user.email || user.name} 로그인`);
         location.href = 'dashboard.html';
         return;
       }
-      toast('프론트 프로토타입에서는 빈 값으로 로그인하거나, 회원가입 후 관리자 화면에서 승인해 주세요.', 'gray');
+      toast('로그인 정보를 확인해 주세요. 초기 관리자 계정은 Admin_cs / admin1q2w3e 입니다.', 'gray');
     });
   }
 
@@ -311,7 +340,7 @@
     const memberCard = cardByHeading('구성원 목록');
     const memberBody = memberCard ? $('tbody', memberCard) : null;
     if (memberBody) {
-      const rows = (state.users || []).map(u => `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.email)}</td><td>${badge(u.role || 'Viewer', 'blue')}</td><td>${escapeHtml(u.affiliation || '')}</td><td>${badge(u.status || '활성', 'green')}</td><td>${escapeHtml(u.lastLogin || '-')}</td><td><button class="btn ghost" data-deactivate-user="${escapeHtml(u.id)}">비활성</button></td></tr>`).join('');
+      const rows = (state.users || []).map(u => `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.username || u.email || '')}</td><td>${badge(u.role || 'Viewer', 'blue')}</td><td>${escapeHtml(u.affiliation || '')}</td><td>${badge(u.status || '활성', 'green')}</td><td>${escapeHtml(u.lastLogin || '-')}</td><td><button class="btn ghost" data-deactivate-user="${escapeHtml(u.id)}">비활성</button></td></tr>`).join('');
       memberBody.innerHTML = rows || `<tr class="empty-row"><td colspan="7"><strong>아직 등록된 구성원이 없습니다.</strong><br><span>회원가입 신청을 승인하면 구성원 목록에 표시됩니다.</span></td></tr>`;
     }
 
@@ -430,6 +459,7 @@
     let latestResult = null;
     let selectedResultKey = '';
     const conversionResults = new Map();
+    let autoCsvTableRows = [];
 
     const setProgressLocal = (pct) => {
       if (progress) progress.style.width = `${Math.max(0, Math.min(100, pct))}%`;
@@ -491,7 +521,8 @@
 
       let converted = 0;
       let errors = rejected.length;
-      const rowsForTable = rejected.map(file => ({
+      const rowsForTable = autoCsvTableRows.slice();
+      rejected.forEach(file => rowsForTable.push({
         name: file.name,
         size: file.size,
         caseId: '-',
@@ -501,6 +532,8 @@
         qc: '불가',
         error: '.csv만 업로드 가능'
       }));
+      autoCsvTableRows = rowsForTable;
+      renderAutoCsvUploadRows(autoCsvTableRows);
 
       for (let i = 0; i < csvFiles.length; i++) {
         const file = csvFiles[i];
@@ -589,10 +622,14 @@
             error: error.message || 'CSV 변환 중 오류'
           });
         }
-        renderAutoCsvUploadRows(rowsForTable);
-        setMetricText('#autoCsvConverted', `${converted}개`, converted ? '완료' : '진행');
-        setMetricText('#autoCsvQcDone', `${converted}개`, converted ? '완료' : '진행');
-        setMetricText('#autoCsvError', `${errors}개`, errors ? '확인' : '대기');
+        autoCsvTableRows = rowsForTable;
+        renderAutoCsvUploadRows(autoCsvTableRows);
+        const totalConverted = autoCsvTableRows.filter(r => String(r.status || '').includes('완료')).length;
+        const totalErrors = autoCsvTableRows.filter(r => String(r.status || '').includes('오류') || String(r.status || '').includes('차단')).length;
+        setMetricText('#autoCsvTotal', `${autoCsvTableRows.length}개`, '누적');
+        setMetricText('#autoCsvConverted', `${totalConverted}개`, totalConverted ? '완료' : '진행');
+        setMetricText('#autoCsvQcDone', `${totalConverted}개`, totalConverted ? '완료' : '진행');
+        setMetricText('#autoCsvError', `${totalErrors}개`, totalErrors ? '확인' : '대기');
       }
 
       setProgressLocal(100);
@@ -984,6 +1021,77 @@
     toast(created ? '예시 연구 태그를 생성했습니다. 목록에서 수정/삭제할 수 있습니다.' : '이미 있는 예시 태그의 분류축을 갱신했습니다.');
   }
 
+  function setTagColorInputs(tagCard, color) {
+    const value = normalizeTagColor(color || '#0b1f3a');
+    const colorPicker = $('[data-role="tag-color"]', tagCard);
+    const colorText = $('[data-role="tag-color-text"]', tagCard);
+    if (colorPicker) colorPicker.value = value;
+    if (colorText) colorText.value = value;
+    $$('.palette-swatch', tagCard).forEach(btn => btn.classList.toggle('active', normalizeTagColor(btn.dataset.color) === value));
+  }
+
+  function bindTagColorPalette(tagCard) {
+    const colorPicker = $('[data-role="tag-color"]', tagCard);
+    const colorText = $('[data-role="tag-color-text"]', tagCard);
+    $$('.palette-swatch', tagCard).forEach(btn => {
+      btn.addEventListener('click', () => setTagColorInputs(tagCard, btn.dataset.color));
+    });
+    colorPicker?.addEventListener('input', () => setTagColorInputs(tagCard, colorPicker.value));
+    colorText?.addEventListener('input', () => {
+      const value = colorText.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(value)) setTagColorInputs(tagCard, value);
+    });
+    setTagColorInputs(tagCard, colorText?.value || colorPicker?.value || '#0b1f3a');
+  }
+
+  function axisValueLabels(axis) {
+    return (axis?.values || []).map(v => v.label).filter(Boolean);
+  }
+
+  function axisMatches(axis, keywords) {
+    const name = String(axis?.name || '').toLowerCase();
+    return keywords.some(k => name.includes(k.toLowerCase()));
+  }
+
+  function renderTagStructurePreview(state = readState()) {
+    const select = $('#tagStructureSelect');
+    const box = $('#tagStructurePreview');
+    if (!select || !box) return;
+    fillTagSelect(select, '등록된 연구 태그가 없습니다.');
+    const tagId = select.value || state.tags[0]?.id || '';
+    if (tagId && select.value !== tagId && [...select.options].some(o => o.value === tagId)) select.value = tagId;
+    const tag = state.tags.find(t => t.id === tagId);
+    const axes = state.axes.filter(a => a.tagId === tagId);
+    if (!tag) {
+      box.innerHTML = '<div class="empty-state"><strong>연구 태그를 선택하세요.</strong><span>태그를 만들면 군/시점 구조가 여기에 표시됩니다.</span></div>';
+      return;
+    }
+    if (!axes.length) {
+      box.innerHTML = `<div class="empty-state"><strong>${escapeHtml(tag.name)}</strong><span>아직 이 태그에 연결된 군, 시점, 표준값이 없습니다.</span></div>`;
+      return;
+    }
+    const groupAxes = axes.filter(a => axisMatches(a, ['group', '군', '그룹', '비교군', 'cohort']));
+    const timeAxes = axes.filter(a => axisMatches(a, ['timepoint', 'day', 'visit', '시점', '시간', '관찰구간', '기준시점']));
+    const otherAxes = axes.filter(a => !groupAxes.includes(a) && !timeAxes.includes(a));
+    const chipList = (items, emptyText = '등록된 값 없음') => {
+      const labels = items.flatMap(axisValueLabels);
+      return labels.length ? labels.map(v => `<span class="structure-chip">${escapeHtml(v)}</span>`).join('') : `<span class="structure-empty">${escapeHtml(emptyText)}</span>`;
+    };
+    const otherHtml = otherAxes.map(a => `<div class="structure-axis"><strong>${escapeHtml(a.name)}</strong><div class="structure-chip-row">${chipList([a])}</div></div>`).join('') || '<div class="structure-empty">기타 분류축 없음</div>';
+    const groupLabels = groupAxes.flatMap(axisValueLabels);
+    const timeLabels = timeAxes.flatMap(axisValueLabels);
+    const matrix = groupLabels.length || timeLabels.length ? `
+      <div class="tag-structure-matrix">
+        ${(groupLabels.length ? groupLabels : ['군 미지정']).map(g => `<div class="matrix-row"><div class="matrix-group">${escapeHtml(g)}</div><div class="matrix-timepoints">${(timeLabels.length ? timeLabels : ['시점 미지정']).map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div></div>`).join('')}
+      </div>` : '<div class="structure-empty">군/시점 matrix를 만들 표준값이 아직 없습니다.</div>';
+    box.innerHTML = `
+      <div class="structure-title"><strong>${tagBadge(tag)}</strong><span>${escapeHtml(tag.description || '설명 없음')}</span></div>
+      <div class="structure-section"><h4>군, Group</h4><div class="structure-chip-row">${chipList(groupAxes, '군 표준값 없음')}</div></div>
+      <div class="structure-section"><h4>시점, Timepoint</h4><div class="structure-chip-row">${chipList(timeAxes, '시점 표준값 없음')}</div></div>
+      <div class="structure-section"><h4>군 × 시점 한눈에 보기</h4>${matrix}</div>
+      <div class="structure-section"><h4>기타 분류축</h4>${otherHtml}</div>`;
+  }
+
   function initTagManager() {
     const tagCard = cardByHeading('새 연구 태그 만들기');
     const axisCard = cardByHeading('연구 내 분류축 설계') || cardByHeading('태그 내부 분류축 설계');
@@ -998,10 +1106,7 @@
     const trajectoryPresetBtn = $('#seedTrajectoryTemplateBtn');
     [duplicateBtn, saveTagBtn, addAxisBtn, saveValueBtn, presetBtn, trajectoryPresetBtn].forEach(removeDisabledAction);
 
-    const colorPicker = $('[data-role="tag-color"]', tagCard);
-    const colorText = $('[data-role="tag-color-text"]', tagCard);
-    colorPicker?.addEventListener('input', () => { if (colorText) colorText.value = colorPicker.value; });
-    colorText?.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value.trim()) && colorPicker) colorPicker.value = colorText.value.trim(); });
+    bindTagColorPalette(tagCard);
 
     duplicateBtn?.addEventListener('click', () => {
       const name = $('input', tagCard)?.value.trim();
@@ -1015,6 +1120,7 @@
     saveValueBtn?.addEventListener('click', () => saveAxis(axisCard, true));
     presetBtn?.addEventListener('click', ensure2026EcmoTemplate);
     trajectoryPresetBtn?.addEventListener('click', ensureTrajectoryComparisonTemplate);
+    $('#tagStructureSelect')?.addEventListener('change', () => renderTagStructurePreview());
 
     renderTagManager();
   }
@@ -1035,7 +1141,7 @@
     const status = $('[data-role="tag-status"]', tagCard)?.value || '준비 중';
     const color = $('[data-role="tag-color-text"]', tagCard)?.value.trim() || $('[data-role="tag-color"]', tagCard)?.value || '#0b8f8a';
     const irb = $('[data-role="tag-irb"]', tagCard)?.value.trim() || '';
-    const matchUnit = $('[data-role="tag-match-unit"]', tagCard)?.value || '환자 단위';
+    const matchUnit = $('[data-role="tag-match-unit"]', tagCard)?.value || '사람 단위';
     const editId = tagCard.dataset.editId;
 
     const currentState = readState();
@@ -1052,10 +1158,11 @@
     });
     delete tagCard.dataset.editId;
     $$('input, textarea', tagCard).forEach(el => {
-      if (el.type === 'color') el.value = '#0b8f8a';
-      else if (el.dataset.role === 'tag-color-text') el.value = '#0b8f8a';
+      if (el.type === 'color') el.value = '#0b1f3a';
+      else if (el.dataset.role === 'tag-color-text') el.value = '#0b1f3a';
       else el.value = '';
     });
+    setTagColorInputs(tagCard, '#0b1f3a');
     renderTagManager(state);
     addAudit(editId ? 'tag update' : 'tag creation', 'research_tag', name);
     toast(editId ? '연구 태그를 수정했습니다.' : '연구 태그를 저장했습니다.');
@@ -1071,8 +1178,8 @@
     const directInputs = $$('.direct-entry input', axisCard);
 
     const axisName = firstInputs[0]?.value.trim() || directInputs[0]?.value.trim();
-    const inputMode = selects[1]?.value || '드롭다운만 허용';
-    const level = selects[2]?.value || '연구 이벤트 단위';
+    const inputMode = selects[1]?.value || selects[0]?.value || '드롭다운만 허용';
+    const level = '';
     const standardValue = secondInputs[0]?.value.trim() || directInputs[1]?.value.trim();
     const synonyms = (secondInputs[1]?.value.trim() || directInputs[2]?.value.trim() || '').split(',').map(v => v.trim()).filter(Boolean);
     if (!axisName) return toast('분류축 이름을 입력하세요.', 'gray');
@@ -1081,11 +1188,11 @@
     const state = patchState(s => {
       let axis = s.axes.find(a => a.tagId === tagId && a.name.toLowerCase() === axisName.toLowerCase());
       if (!axis) {
-        axis = { id: uid('AXIS'), tagId, name: axisName, inputMode, level, values: [], createdAt: nowText() };
+        axis = { id: uid('AXIS'), tagId, name: axisName, inputMode, values: [], createdAt: nowText() };
         s.axes.unshift(axis);
       }
       axis.inputMode = inputMode;
-      axis.level = level;
+      delete axis.level;
       if (standardValue && !axis.values.some(v => v.label.toLowerCase() === standardValue.toLowerCase())) {
         axis.values.push({ id: uid('VAL'), label: standardValue, synonyms });
       }
@@ -1118,11 +1225,12 @@
     if (axisBody) {
       const rows = state.axes.flatMap(a => {
         const tag = state.tags.find(t => t.id === a.tagId);
-        if (!a.values?.length) return [`<tr><td>${escapeHtml(tag?.name || '-')}</td><td>${escapeHtml(a.name)}</td><td>-</td><td>-</td><td>${escapeHtml(a.level)}</td><td>${escapeHtml(a.inputMode)}</td><td><button class="btn ghost" data-delete-axis="${a.id}">삭제</button></td></tr>`];
-        return a.values.map(v => `<tr><td>${escapeHtml(tag?.name || '-')}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(v.label)}</td><td>${escapeHtml((v.synonyms || []).join(', ') || '-')}</td><td>${escapeHtml(a.level)}</td><td>${escapeHtml(a.inputMode)}</td><td><button class="btn ghost" data-delete-axis="${a.id}">삭제</button></td></tr>`);
+        if (!a.values?.length) return [`<tr><td>${escapeHtml(tag?.name || '-')}</td><td>${escapeHtml(a.name)}</td><td>-</td><td>-</td><td>${escapeHtml(a.inputMode)}</td><td><button class="btn ghost" data-delete-axis="${a.id}">삭제</button></td></tr>`];
+        return a.values.map(v => `<tr><td>${escapeHtml(tag?.name || '-')}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(v.label)}</td><td>${escapeHtml((v.synonyms || []).join(', ') || '-')}</td><td>${escapeHtml(a.inputMode)}</td><td><button class="btn ghost" data-delete-axis="${a.id}">삭제</button></td></tr>`);
       });
-      axisBody.innerHTML = rows.join('') || `<tr class="empty-row"><td colspan="7"><strong>아직 등록된 연구 내 분류축이 없습니다.</strong><br><span>표준값을 정의하면 이곳에 표시됩니다.</span></td></tr>`;
+      axisBody.innerHTML = rows.join('') || `<tr class="empty-row"><td colspan="6"><strong>아직 등록된 연구 내 분류축이 없습니다.</strong><br><span>표준값을 정의하면 이곳에 표시됩니다.</span></td></tr>`;
     }
+    renderTagStructurePreview(state);
     bindTagManagerActions();
   }
 
@@ -1139,9 +1247,10 @@
       if ($('[data-role="tag-status"]', tagCard)) $('[data-role="tag-status"]', tagCard).value = t.status || '준비 중';
       if ($('[data-role="tag-color"]', tagCard)) $('[data-role="tag-color"]', tagCard).value = color;
       if ($('[data-role="tag-color-text"]', tagCard)) $('[data-role="tag-color-text"]', tagCard).value = color;
+      setTagColorInputs(tagCard, color);
       if ($('textarea', tagCard)) $('textarea', tagCard).value = t.description || '';
       if ($('[data-role="tag-irb"]', tagCard)) $('[data-role="tag-irb"]', tagCard).value = t.irb || '';
-      if ($('[data-role="tag-match-unit"]', tagCard)) $('[data-role="tag-match-unit"]', tagCard).value = t.matchUnit || '환자 단위';
+      if ($('[data-role="tag-match-unit"]', tagCard)) $('[data-role="tag-match-unit"]', tagCard).value = t.matchUnit || '사람 단위';
       tagCard.dataset.editId = t.id;
       toast('수정할 태그 정보를 위 입력칸에 불러왔습니다.');
       tagCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1440,7 +1549,7 @@
   }
 
   function populateAssignmentInternalSelects(tagId) {
-    const card = cardByHeading('태그 내부 구분값 입력');
+    const card = cardByHeading('연구 내 분류값 입력') || cardByHeading('태그 내부 구분값 입력');
     if (!card) return;
     const selects = $$('select', card);
     if (selects[0]) selects[0].innerHTML = axisValueOptions(tagId, ['관찰구간', 'timepoint', 'day', 'visit', '시간', '방문'], '등록된 관찰구간/Timepoint 없음');
@@ -1453,10 +1562,12 @@
     const body = cardByHeading('대상 선택')?.querySelector('tbody');
     if (!body) return;
     const targets = [
-      ...state.vitalFiles.map(f => ({ id: f.id, label: f.name, type: 'Vital file', tagIds: f.tagIds || [], status: f.uploadStatus })),
-      ...state.variables.map(v => ({ id: v.id, label: v.name, type: '임상자료 변수', tagIds: [v.tagId], status: v.status }))
+      ...state.studyPatients.map(sp => ({ id: sp.id, label: sp.pseudoId || sp.patientId || sp.id, type: '사람, 연구대상자', tagIds: [sp.tagId], status: '대상자 배정' })),
+      ...state.patients.map(p => ({ id: p.id, label: p.pseudoId || ('****' + String(p.registrationNo || '').slice(-4)), type: '사람 master', tagIds: [], status: '환자 등록' })),
+      ...state.vitalFiles.map(f => ({ id: f.id, label: f.name, type: '사람 + raw CSV/QC 파일', tagIds: f.tagIds || [], status: f.uploadStatus })),
+      ...state.variables.map(v => ({ id: v.id, label: v.name, type: '사람 + 검사/임상자료', tagIds: [v.tagId], status: v.status }))
     ];
-    if (!targets.length) return setTableEmpty(body, 9, '태그를 부여할 대상이 없습니다.', 'Vital 파일을 업로드하거나 연구자료 항목을 추가하세요.');
+    if (!targets.length) return setTableEmpty(body, 9, '태그를 부여할 대상이 없습니다.', '환자 master, 연구대상자, raw CSV/QC 파일 또는 검사기록을 먼저 추가하세요.');
     body.innerHTML = targets.map(t => `<tr>
       <td><input type="checkbox" data-target-id="${escapeHtml(t.id)}" data-target-type="${escapeHtml(t.type)}"></td><td>${escapeHtml(t.label)}</td><td>${escapeHtml(t.type)}</td>
       <td>${(t.tagIds || []).length ? badge('태그 있음', 'blue') : badge('미태그', 'gray')}</td><td class="assign-day">-</td><td class="assign-group">-</td><td class="assign-stage">-</td><td>${badge('없음', 'green')}</td><td>${escapeHtml(t.status || '-')}</td>
@@ -1472,7 +1583,7 @@
     if (!tag) return toast('연구 태그를 먼저 선택하세요.', 'gray');
     const checked = $$('[data-target-id]:checked');
     if (!checked.length) return toast('태그를 부여할 대상을 선택하세요.', 'gray');
-    const classCard = cardByHeading('태그 내부 구분값 입력');
+    const classCard = cardByHeading('연구 내 분류값 입력') || cardByHeading('태그 내부 구분값 입력');
     const selects = $$('select', classCard);
     const direct = $$('.direct-entry input', classCard).map(i => i.value.trim());
     const internal = {
@@ -1494,7 +1605,7 @@
         if (!val || val === '선택 안 함') return;
         let axis = s.axes.find(a => a.tagId === tagId && a.name.toLowerCase() === axisName.toLowerCase());
         if (!axis) {
-          axis = { id: uid('AXIS'), tagId, name: axisName, inputMode: '드롭다운 + 관리자 새 값 추가', level: '연구 이벤트 단위', values: [] };
+          axis = { id: uid('AXIS'), tagId, name: axisName, inputMode: '드롭다운 + 관리자 새 값 추가', values: [] };
           s.axes.push(axis);
         }
         if (!axis.values.some(v => v.label.toLowerCase() === val.toLowerCase())) axis.values.push({ id: uid('VAL'), label: val, synonyms: [] });
@@ -1512,7 +1623,7 @@
     const tag = state.tags.find(t => t.id === tagSelect?.value);
     const dds = $$('.preview-card .kv dd');
     if (dds[0]) dds[0].textContent = tag?.name || '없음';
-    const classCard = cardByHeading('태그 내부 구분값 입력');
+    const classCard = cardByHeading('연구 내 분류값 입력') || cardByHeading('태그 내부 구분값 입력');
     const internal = $$('select', classCard).map(selectedText).filter(Boolean).join(' / ');
     if (dds[1]) dds[1].textContent = internal || '없음';
     if (dds[2]) dds[2].textContent = `${$$('[data-target-id]:checked').length}건`;
@@ -1539,14 +1650,14 @@
     const axisBody = cardByHeading('태그 내부 분류 구조')?.querySelector('tbody');
     const axes = state.axes.filter(a => a.tagId === tagId);
     if (axisBody) {
-      const rows = axes.flatMap(a => (a.values?.length ? a.values : [{ label: '-', synonyms: [] }]).map(v => `<tr><td>${escapeHtml(a.name)}</td><td>${escapeHtml(v.label)}</td><td>${escapeHtml((v.synonyms || []).join(', ') || '-')}</td><td>${escapeHtml(a.level)}</td><td>${escapeHtml(a.inputMode)}</td></tr>`));
-      axisBody.innerHTML = rows.join('') || `<tr class="empty-row"><td colspan="5"><strong>선택된 연구 태그의 내부 분류축이 없습니다.</strong><br><span>태그 관리에서 Day/group 같은 내부 구조를 추가하세요.</span></td></tr>`;
+      const rows = axes.flatMap(a => (a.values?.length ? a.values : [{ label: '-', synonyms: [] }]).map(v => `<tr><td>${escapeHtml(a.name)}</td><td>${escapeHtml(v.label)}</td><td>${escapeHtml((v.synonyms || []).join(', ') || '-')}</td><td>${escapeHtml(a.inputMode)}</td></tr>`));
+      axisBody.innerHTML = rows.join('') || `<tr class="empty-row"><td colspan="4"><strong>선택된 연구 태그의 내부 분류축이 없습니다.</strong><br><span>태그 관리에서 Day/group 같은 내부 구조를 추가하세요.</span></td></tr>`;
     }
     const matrixBody = cardByHeading('태그에 포함된 데이터 매트릭스')?.querySelector('tbody');
     if (matrixBody) {
       const assigned = state.assignments.filter(a => a.tagId === tagId);
       if (!assigned.length) return setTableEmpty(matrixBody, 8, '선택된 태그 또는 포함된 데이터가 없습니다.', '태그 부여 화면에서 대상과 내부 구분값을 저장하면 표시됩니다.');
-      matrixBody.innerHTML = assigned.map(a => `<tr><td>${escapeHtml(a.targetId)}</td><td>${escapeHtml(a.targetType)}</td><td>${a.targetType === 'Vital file' ? escapeHtml(a.targetId) : '-'}</td><td>${escapeHtml(a.internal?.day || '-')}</td><td>${escapeHtml(a.internal?.group || '-')}</td><td>${state.variables.filter(v => v.tagId === tagId).length}</td><td>-</td><td>${escapeHtml(a.assignedAt)}</td></tr>`).join('');
+      matrixBody.innerHTML = assigned.map(a => `<tr><td>${escapeHtml(a.targetId)}</td><td>${escapeHtml(a.targetType)}</td><td>${String(a.targetType || '').includes('raw CSV') ? escapeHtml(a.targetId) : '-'}</td><td>${escapeHtml(a.internal?.day || '-')}</td><td>${escapeHtml(a.internal?.group || '-')}</td><td>${state.variables.filter(v => v.tagId === tagId).length}</td><td>-</td><td>${escapeHtml(a.assignedAt)}</td></tr>`).join('');
     }
   }
 
@@ -2757,6 +2868,1268 @@
     }).join('');
   }
 
+
+
+  // Optimized converter override: large raw CSV support without materializing every row as an object.
+  // This keeps SICU high-frequency CSV and CCU Solar8000 ST-only CSV both usable in the browser prototype.
+  function parseCsvDtStartMetadata(lines, sep, headerIdx) {
+    const limit = Math.max(0, Math.min(headerIdx, 30));
+    for (let i = 0; i < limit; i++) {
+      const cells = parseDelimitedLine(lines[i] || '', sep);
+      const key = String(cells[0] || '').trim().toLowerCase();
+      if (key === '#dtstart' || key === 'dtstart') {
+        const dt = parseDateTimeString(cells[1]);
+        if (dt) return dt;
+      }
+    }
+    return null;
+  }
+
+  function headerEntriesFromCells(cells) {
+    return cells.map((name, index) => ({ name: String(name || '').trim(), index }))
+      .filter(item => item.name && !/^Unnamed/i.test(item.name));
+  }
+
+  function sampleNumericCountsFromLines(lines, sep, headerIdx, headerEntries, limit = 18000) {
+    const counts = new Map(headerEntries.map(h => [h.name, 0]));
+    const rowsToUse = Math.min(lines.length, headerIdx + 1 + limit);
+    let sampledRows = 0;
+    for (let i = headerIdx + 1; i < rowsToUse; i++) {
+      const line = lines[i];
+      if (!line || !line.trim() || line.trim().startsWith('#')) continue;
+      const cells = parseDelimitedLine(line, sep);
+      sampledRows += 1;
+      headerEntries.forEach(h => {
+        if (Number.isFinite(numericClean(cells[h.index]))) counts.set(h.name, (counts.get(h.name) || 0) + 1);
+      });
+    }
+    return { counts, sampledRows };
+  }
+
+  function optimizedFindColumn(headerEntries, patternGroups, sampleCounts) {
+    const normMap = headerEntries.map(h => ({ ...h, norm: normalizeColname(h.name), count: sampleCounts.get(h.name) || 0 }));
+    for (const patterns of patternGroups) {
+      const normalized = patterns.map(normalizeColname);
+      const usable = normMap
+        .filter(h => normalized.every(p => h.norm.includes(p)))
+        .filter(h => !isMonitorMetaColumn(h.name))
+        .filter(h => h.count > 0)
+        .sort((a, b) => b.count - a.count || a.index - b.index);
+      if (usable.length) return usable[0];
+    }
+    return null;
+  }
+
+  function optimizedDetectVitalColumns(headerEntries, sampleCounts) {
+    const patterns = {
+      HR: [['ECG','HR'], ['ABP','HR'], ['PLETH','HR'], ['HEART','RATE'], ['HEARTRATE'], ['HR']],
+      MAP: [['ABP','MEAN'], ['ART','MEAN'], ['IBP','MEAN'], ['ART','MBP'], ['ABP','MBP'], ['MEAN','BP'], ['MAP'], ['MBP']],
+      SBP: [['ABP','SYS'], ['ART','SYS'], ['IBP','SYS'], ['ART','SBP'], ['SYSTOLIC'], ['SBP']],
+      DBP: [['ABP','DIA'], ['ART','DIA'], ['IBP','DIA'], ['ART','DBP'], ['DIASTOLIC'], ['DBP']],
+      SpO2: [['PLETH','SPO2'], ['PLETH','SATO2'], ['SPO2'], ['SATO2'], ['SAT','O2']],
+      PI: [['PLETH','PERF'], ['PERF','REL'], ['PERFUSION'], ['PI']],
+      RR: [['RESP','RATE'], ['RESP','RR'], ['RESPRATE'], ['INTELLIVUE','RR'], ['RR']]
+    };
+    const out = {};
+    Object.entries(patterns).forEach(([signal, patternGroups]) => {
+      const hit = optimizedFindColumn(headerEntries, patternGroups, sampleCounts);
+      out[signal] = hit ? hit.name : null;
+    });
+    return out;
+  }
+
+  function optimizedAuxiliarySignals(headerEntries, sampleCounts, usedSources, usedNames, maxSignals = 12) {
+    const blocked = new Set(usedSources.filter(Boolean));
+    const names = new Set(usedNames);
+    const candidates = headerEntries
+      .filter(h => !blocked.has(h.name))
+      .filter(h => !isMonitorMetaColumn(h.name))
+      .filter(h => !['TIME','DATE','DATETIME','TIMESTAMP','DATEANDTIME','CLOCKTIME'].includes(normalizeColname(h.name)))
+      .map(h => ({ ...h, count: sampleCounts.get(h.name) || 0 }))
+      .filter(h => h.count > 0)
+      .filter(h => {
+        const n = normalizeColname(h.name);
+        // Avoid obvious high-frequency waveform channels when possible; keep ST and numeric trend-like channels.
+        if (n.includes('WAV') || n.endsWith('WAVE')) return false;
+        return true;
+      })
+      .sort((a, b) => b.count - a.count || a.index - b.index)
+      .slice(0, maxSignals);
+    return candidates.map(h => ({ signal: signalNameFromHeader(h.name, names), source: h.name, index: h.index, count: h.count }));
+  }
+
+  function optimizedTimeColumnInfo(headerEntries) {
+    const activeNames = headerEntries.map(h => h.name);
+    const found = findTimeColumns(activeNames);
+    const byName = Object.fromEntries(headerEntries.map(h => [h.name, h.index]));
+    return {
+      datetimeCol: found.datetimeCol,
+      datetimeIdx: found.datetimeCol ? byName[found.datetimeCol] : null,
+      dateCol: found.dateCol,
+      dateIdx: found.dateCol ? byName[found.dateCol] : null,
+      timeCol: found.timeCol,
+      timeIdx: found.timeCol ? byName[found.timeCol] : null
+    };
+  }
+
+  function optimizedDateTimeFromCells(cells, timeInfo, startDt, rowNumber, rolloverState) {
+    if (timeInfo.datetimeIdx !== null && timeInfo.datetimeIdx !== undefined) {
+      const raw = cells[timeInfo.datetimeIdx];
+      const num = numericClean(raw);
+      if (startDt && Number.isFinite(num) && num < 10000000) return new Date(startDt.getTime() + num * 1000);
+      const dt = parseDateTimeString(raw);
+      if (dt) return dt;
+    }
+    if (timeInfo.dateIdx !== null && timeInfo.dateIdx !== undefined && timeInfo.timeIdx !== null && timeInfo.timeIdx !== undefined) {
+      const dt = parseDateTimeString(`${cells[timeInfo.dateIdx]} ${cells[timeInfo.timeIdx]}`);
+      if (dt) return dt;
+    }
+    if (timeInfo.timeIdx !== null && timeInfo.timeIdx !== undefined) {
+      const raw = cells[timeInfo.timeIdx];
+      const num = numericClean(raw);
+      if (startDt && Number.isFinite(num) && num < 10000000) return new Date(startDt.getTime() + num * 1000);
+      const sec = parseTimeToSeconds(raw);
+      if (startDt && Number.isFinite(sec)) {
+        const base = new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate()).getTime();
+        let ms = base + (rolloverState.dayOffset || 0) * 86400000 + sec * 1000;
+        if (rolloverState.lastWallMs !== null && ms - rolloverState.lastWallMs < -3600000) {
+          rolloverState.dayOffset = (rolloverState.dayOffset || 0) + 1;
+          ms += 86400000;
+        }
+        rolloverState.lastWallMs = ms;
+        return new Date(ms);
+      }
+      const dt = parseDateTimeString(raw);
+      if (dt) return dt;
+    }
+    if (startDt) return new Date(startDt.getTime() + rowNumber * 1000);
+    return new Date(new Date(2026, 0, 1, 0, 0, 0).getTime() + rowNumber * 1000);
+  }
+
+  function createStreamingBucket(caseId, segmentNum, minute, ms, vitalCols) {
+    const bucket = {
+      case_id: caseId,
+      segment_id: `${caseId}_seg_${String(segmentNum).padStart(3, '0')}`,
+      segment_num: segmentNum,
+      Minute: minute,
+      startMs: ms,
+      endMs: ms,
+      n_rows_with_any_vital: 0,
+      acc: {}
+    };
+    vitalCols.forEach(col => bucket.acc[col] = { values: [], count: 0, sum: 0, sumSq: 0, min: Infinity, max: -Infinity });
+    return bucket;
+  }
+
+  function addStreamingValue(acc, value) {
+    acc.values.push(value);
+    acc.count += 1;
+    acc.sum += value;
+    acc.sumSq += value * value;
+    acc.min = Math.min(acc.min, value);
+    acc.max = Math.max(acc.max, value);
+  }
+
+  function finalizeStreamingAcc(acc) {
+    if (!acc || acc.count === 0) return { mean: NaN, min: NaN, max: NaN, std: NaN, median: NaN, count: 0 };
+    const avg = acc.sum / acc.count;
+    const variance = acc.count > 1 ? Math.max(0, (acc.sumSq - (acc.sum * acc.sum / acc.count)) / (acc.count - 1)) : NaN;
+    return {
+      mean: avg,
+      min: acc.min,
+      max: acc.max,
+      std: Number.isFinite(variance) ? Math.sqrt(variance) : NaN,
+      median: median(acc.values),
+      count: acc.count
+    };
+  }
+
+  async function convertRawVitalCsvFile(file) {
+    const settings = getCsvSettings();
+    const { text, encoding } = await readFileTextWithEncodingGuess(file);
+    const detected = detectSeparatorAndHeader(text);
+    const lines = text.split(/\r?\n/);
+    const headerCells = parseDelimitedLine(lines[detected.headerIdx] || '', detected.sep).map(h => String(h).trim());
+    const headerEntries = headerEntriesFromCells(headerCells);
+    if (!headerEntries.length) throw new Error('CSV header를 찾지 못했습니다.');
+
+    const sample = sampleNumericCountsFromLines(lines, detected.sep, detected.headerIdx, headerEntries);
+    const detectedCols = optimizedDetectVitalColumns(headerEntries, sample.counts);
+    const coreSignals = ['HR','MAP','SBP','DBP','SpO2','PI','RR']
+      .map(signal => {
+        const h = headerEntries.find(x => x.name === detectedCols[signal]);
+        const count = h ? sample.counts.get(h.name) || 0 : 0;
+        return h && count > 0 ? { signal, source: h.name, index: h.index, core: true } : null;
+      })
+      .filter(Boolean);
+
+    // If core vital exists, keep conversion focused on core vital for speed.
+    // If not, fall back to numeric auxiliary channels such as Solar8000/ST_*.
+    const auxiliarySignals = coreSignals.length
+      ? []
+      : optimizedAuxiliarySignals(headerEntries, sample.counts, Object.values(detectedCols), ['HR','MAP','SBP','DBP','SpO2','PI','RR'], 12);
+    const signalSources = [...coreSignals, ...auxiliarySignals.map(x => ({ ...x, core: false }))];
+
+    if (!signalSources.length) {
+      throw new Error('수치형 trend 컬럼을 찾지 못했습니다. MSG/ALARM/STATUS/FLAG만 있는 CSV는 feature를 만들 수 없습니다.');
+    }
+
+    const caseId = makeCaseIdFromName(file.name, true);
+    const metadataStart = parseCsvDtStartMetadata(lines, detected.sep, detected.headerIdx);
+    const startFromName = parseStartDateTimeFromName(file.name);
+    const startDt = metadataStart || startFromName;
+    const timeInfo = optimizedTimeColumnInfo(headerEntries);
+    const vitalCols = signalSources.map(item => item.signal);
+    const sourceBySignal = Object.fromEntries(signalSources.map(item => [item.signal, item.source]));
+    const ranges = { HR:[20,250], MAP:[0,200], SBP:[0,300], DBP:[0,200], SpO2:[0,100], PI:[0,100], RR:[3,80] };
+    const coreSet = new Set(coreSignals.map(x => x.signal));
+    const buckets = new Map();
+    let segmentNum = 0;
+    let segmentStartMs = null;
+    let prevMs = null;
+    let rowsRead = 0;
+    let validSignalRows = 0;
+    const rolloverState = { dayOffset: 0, lastWallMs: null };
+    const rrValuesForCheck = [];
+
+    const lowerMs = settings.filterByFilenameTime && startDt ? startDt.getTime() - 3600000 : null;
+    const upperMs = settings.filterByFilenameTime && startDt ? startDt.getTime() + settings.maxHours * 3600000 : null;
+
+    for (let i = detected.headerIdx + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line || !line.trim() || line.trim().startsWith('#')) continue;
+      const cells = parseDelimitedLine(line, detected.sep);
+      rowsRead += 1;
+      const dt = optimizedDateTimeFromCells(cells, timeInfo, startDt, rowsRead - 1, rolloverState);
+      if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) continue;
+      const ms = dt.getTime();
+      if (lowerMs !== null && (ms < lowerMs || ms > upperMs)) continue;
+
+      const values = {};
+      let hasAny = false;
+      signalSources.forEach(({ signal, index, core }) => {
+        let value = numericClean(cells[index]);
+        const range = core ? ranges[signal] : null;
+        if (range && Number.isFinite(value) && (value < range[0] || value > range[1])) value = NaN;
+        if (Number.isFinite(value)) {
+          values[signal] = value;
+          hasAny = true;
+          if (signal === 'RR') rrValuesForCheck.push(value);
+        }
+      });
+      if (!hasAny) continue;
+
+      if (prevMs === null || (ms - prevMs) / 1000 > settings.segmentGapSec || ms < prevMs) {
+        segmentNum += 1;
+        segmentStartMs = ms;
+      }
+      prevMs = ms;
+      const elapsedSec = (ms - segmentStartMs) / 1000;
+      const minute = Math.floor(elapsedSec / 60);
+      const key = `${segmentNum}|${minute}`;
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = createStreamingBucket(caseId, segmentNum, minute, ms, vitalCols);
+        buckets.set(key, bucket);
+      }
+      bucket.startMs = Math.min(bucket.startMs, ms);
+      bucket.endMs = Math.max(bucket.endMs, ms);
+      bucket.n_rows_with_any_vital += 1;
+      validSignalRows += 1;
+      vitalCols.forEach(signal => {
+        if (Number.isFinite(values[signal])) addStreamingValue(bucket.acc[signal], values[signal]);
+      });
+    }
+
+    if (!buckets.size) {
+      const mapped = signalSources.map(item => `${item.signal}←${item.source}`).join(', ');
+      throw new Error(`컬럼은 감지했지만 유효한 수치값이 없습니다. 감지 결과: ${mapped || '없음'}`);
+    }
+
+    // RR guard after streaming: if RR is not physiologic, clear RR-derived values.
+    if (vitalCols.includes('RR') && rrValuesForCheck.length && (median(rrValuesForCheck) < 5 || quantile(rrValuesForCheck, 0.95) > 80)) {
+      buckets.forEach(bucket => {
+        bucket.acc.RR = { values: [], count: 0, sum: 0, sumSq: 0, min: Infinity, max: -Infinity };
+      });
+    }
+
+    let features = Array.from(buckets.values()).map(bucket => {
+      const row = {
+        case_id: bucket.case_id,
+        segment_id: bucket.segment_id,
+        segment_num: bucket.segment_num,
+        Minute: bucket.Minute,
+        _start_ms: bucket.startMs,
+        _end_ms: bucket.endMs,
+        n_rows_with_any_vital: bucket.n_rows_with_any_vital
+      };
+      vitalCols.forEach(col => {
+        const s = finalizeStreamingAcc(bucket.acc[col]);
+        row[`${col}_mean`] = s.mean;
+        row[`${col}_min`] = s.min;
+        row[`${col}_max`] = s.max;
+        row[`${col}_std`] = s.std;
+        row[`${col}_median`] = s.median;
+        row[`${col}_count`] = s.count;
+      });
+      if (vitalCols.includes('MAP')) row[`n_MAP_below_${settings.mapThreshold}`] = (bucket.acc.MAP.values || []).filter(v => v < settings.mapThreshold).length;
+      if (vitalCols.includes('SpO2')) row.n_SpO2_below_90 = (bucket.acc.SpO2.values || []).filter(v => v < 90).length;
+      if (vitalCols.includes('HR')) {
+        row.n_HR_below_40 = (bucket.acc.HR.values || []).filter(v => v < 40).length;
+        row.n_HR_above_130 = (bucket.acc.HR.values || []).filter(v => v > 130).length;
+      }
+      if (vitalCols.includes('RR')) {
+        row.n_RR_below_8 = (bucket.acc.RR.values || []).filter(v => v < 8).length;
+        row.n_RR_above_30 = (bucket.acc.RR.values || []).filter(v => v > 30).length;
+      }
+      return row;
+    }).sort((a, b) => a.segment_num - b.segment_num || a.Minute - b.Minute);
+
+    const expectedCounts = {};
+    vitalCols.forEach(col => {
+      const counts = features.map(r => r[`${col}_count`]).filter(v => Number.isFinite(v) && v > 0);
+      const expected = counts.length ? Math.max(quantile(counts, 0.75), 1) : NaN;
+      expectedCounts[col] = expected;
+      features.forEach(r => {
+        r[`${col}_expected_count_per_min`] = expected;
+        if (!Number.isFinite(expected) || expected === 0) {
+          r[`${col}_valid_ratio`] = NaN;
+          r[`${col}_missing_rate`] = NaN;
+        } else {
+          const ratio = Math.min(Math.max((r[`${col}_count`] || 0) / expected, 0), 1);
+          r[`${col}_valid_ratio`] = ratio;
+          r[`${col}_missing_rate`] = 1 - ratio;
+        }
+      });
+    });
+
+    const flatThresholds = { HR:0.1, MAP:0.1, SBP:0.1, DBP:0.1, SpO2:0.05, PI:0.001, RR:0.1 };
+    vitalCols.forEach(col => {
+      const expected = expectedCounts[col];
+      const minCount = (!Number.isFinite(expected) || expected === 0) ? 5 : Math.max(5, expected * 0.5);
+      const threshold = flatThresholds[col] ?? 1e-9;
+      features.forEach(r => {
+        const sd = Number.isFinite(r[`${col}_std`]) ? r[`${col}_std`] : 0;
+        r[`${col}_flatline_flag`] = ((r[`${col}_count`] || 0) >= minCount && sd <= threshold) ? 1 : 0;
+      });
+    });
+
+    const eventCols = [];
+    if (vitalCols.includes('MAP')) eventCols.push(`n_MAP_below_${settings.mapThreshold}`);
+    if (vitalCols.includes('SpO2')) eventCols.push('n_SpO2_below_90');
+    if (vitalCols.includes('HR')) eventCols.push('n_HR_below_40', 'n_HR_above_130');
+    if (vitalCols.includes('RR')) eventCols.push('n_RR_below_8', 'n_RR_above_30');
+    features.forEach(r => eventCols.forEach(c => r[`${c}_ratio`] = r.n_rows_with_any_vital ? r[c] / r.n_rows_with_any_vital : NaN));
+
+    if (settings.makeFutureLabel && vitalCols.includes('MAP')) {
+      const labelCol = `label_next_${settings.futureHorizonMin}min_MAP_below_${settings.mapThreshold}`;
+      const bySeg = groupBy(features, r => String(r.segment_num));
+      Object.values(bySeg).forEach(segRows => {
+        segRows.sort((a, b) => a.Minute - b.Minute);
+        const eventVals = segRows.map(r => r[`n_MAP_below_${settings.mapThreshold}`] > 0 ? 1 : 0);
+        segRows.forEach((r, i) => {
+          const window = eventVals.slice(i + 1, i + 1 + settings.futureHorizonMin);
+          if (window.length < settings.futureHorizonMin && settings.labelIncompleteAsNa) r[labelCol] = NaN;
+          else r[labelCol] = window.length ? (Math.max(...window) > 0 ? 1 : 0) : NaN;
+        });
+      });
+    }
+
+    const segMinuteCounts = groupBy(features, r => r.segment_id);
+    const validSegments = new Set(Object.entries(segMinuteCounts).filter(([, arr]) => new Set(arr.map(r => r.Minute)).size >= settings.minSegmentMinutes).map(([id]) => id));
+    features = features.filter(r => validSegments.has(r.segment_id));
+    if (!features.length) throw new Error('유효 segment가 없습니다. segment 길이 기준을 낮추거나 파일 시간을 확인하세요.');
+
+    features.forEach(r => {
+      r.Minute_start_datetime_iso = formatDateTime(new Date(r._start_ms));
+      r.Minute_end_datetime_iso = formatDateTime(new Date(r._end_ms));
+      r.minute_duration_sec = (r._end_ms - r._start_ms) / 1000;
+      delete r._start_ms;
+      delete r._end_ms;
+    });
+
+    const frontCols = ['case_id','segment_id','segment_num','Minute','Minute_start_datetime_iso','Minute_end_datetime_iso','minute_duration_sec','n_rows_with_any_vital'];
+    const labelCols = Object.keys(features[0] || {}).filter(c => c.startsWith('label_'));
+    const middleCols = Object.keys(features[0] || {}).filter(c => !frontCols.includes(c) && !labelCols.includes(c));
+    const orderedCols = [...frontCols, ...middleCols, ...labelCols];
+    features = features.map(r => orderedCols.reduce((o, c) => { o[c] = csvSafeValue(r[c]); return o; }, {}));
+    const dictionary = orderedCols.map(c => ({ column: c, description: describeFeatureColumn(c) || `1분 구간 ${c} feature` }));
+
+    return {
+      caseId,
+      encoding,
+      separator: detected.sep === '\t' ? 'tab' : detected.sep,
+      headerIdx: detected.headerIdx,
+      detectedCols,
+      auxiliarySignals,
+      detectedSignalNames: vitalCols,
+      sourceBySignal,
+      expectedCounts,
+      rowsRead,
+      validSignalRows,
+      features,
+      dictionary,
+      columns: orderedCols,
+      segmentCount: new Set(features.map(r => r.segment_id)).size,
+      conversionMode: coreSignals.length ? 'core vital' : 'auxiliary numeric'
+    };
+  }
+
+
+  /* Clinical patient/lab entry redesign: registration number only, fixed baseline history, multi-ECMO episode sheets, microbiology, and diagnostic lab records. */
+  const CLINICAL_CONDITIONS = [
+    { key: 'hypertension', label: '고혈압' },
+    { key: 'diabetes', label: '당뇨' },
+    { key: 'pulmonaryTb', label: '폐결핵' },
+    { key: 'hepatitis', label: '간염' },
+    { key: 'cancer', label: '암' },
+    { key: 'operationHistory', label: '수술기왕력' },
+    { key: 'stroke', label: '뇌졸중' },
+    { key: 'hyperlipidemia', label: '고지혈증' },
+    { key: 'padCarotid', label: '말초동맥 및 경동맥질환' },
+    { key: 'allergy', label: '알레르기' },
+    { key: 'medication', label: '투약' }
+  ];
+
+  const DEFAULT_ORGANISMS = [
+    'Staphylococcus epidermidis',
+    'Enterococcus faecalis',
+    'Pseudomonas aeruginosa',
+    'Corynebacterium striatum',
+    'Acinetobacter baumannii',
+    'Aerococcus urinae',
+    'Fusobacterium varium',
+    'Staphylococcus capitis',
+    'Klebsiella pneumoniae',
+    'Candida species',
+    'Stenotrophomonas maltophilia',
+    'Neisseria flavescens',
+    'Staphylococcus caprae',
+    'Bacillus megaterium',
+    'Burkholderia cenocepacia',
+    'Candida albicans',
+    'Staphylococcus haemolyticus',
+    'Escherichia coli',
+    'Citrobacter freundii',
+    'Streptococcus gallolyticus ssp gallolyticus'
+  ];
+
+  const MICRO_SPECIMEN_SITES = ['', '객담(호흡기)', '혈액', '스툴(대변)', '소변', '기타'];
+
+  const DEFAULT_VENT_MODES = ['AC(VC)', 'SIMV(PC)', 'PC', 'Nasal prong', 'T-piece', 'O2 mask', 'High flow nasal cannula'];
+
+  const PRE_ABGA_FIELDS = [
+    ['preAbgaPh', 'pH'], ['preAbgaPco2', 'PCO2'], ['preAbgaPo2', 'PO2'], ['preAbgaHco3', 'HCO3'], ['preAbgaSao2', 'SaO2'], ['preAbgaLactate', 'Lactate']
+  ];
+
+  const PRE_LAB_FIELDS = [
+    ['preLabWbc', 'WBC'], ['preLabHgb', 'Hgb'], ['preLabHctLow', 'Hct(Low)'], ['preLabPltLow', 'Plt(Low)'], ['preLabPhLow', 'PH(Low)'],
+    ['preLabK', 'K'], ['preLabNa', 'Na'], ['preLabHco3Low', 'HCO3(Low)'], ['preLabCa', 'Ca'], ['preLabLactate', 'Lactate'],
+    ['preLabAlbumin', 'Albumin'], ['preLabCreatinine', 'Creatinine'], ['preLabBilirubin', 'Bilirubin'], ['preLabAst', 'AST'], ['preLabInr', 'INR'], ['preLabFibrinogen', 'Fibrinogen']
+  ];
+
+  const DURING_ECMO_TIMEPOINTS = [
+    { key: 'fourHour', prefix: 'during4h', label: '4시간 경과' },
+    { key: 'twentyFourHour', prefix: 'during24h', label: '24시간 경과' }
+  ];
+
+  const DURING_ABGA_SUFFIXES = [['AbgaPh', 'pH'], ['AbgaPco2', 'PCO2'], ['AbgaPo2', 'PO2'], ['AbgaHco3', 'HCO3'], ['AbgaSao2', 'SaO2'], ['AbgaLactate', 'Lactate']];
+  const DURING_VENT_SUFFIXES = [['VentMode', 'Mode'], ['VentFio2', 'FiO2'], ['VentRr', 'RR'], ['VentPeep', 'PEEP']];
+  const DURING_HEMO_SUFFIXES = [['HemoSbp', 'SBP'], ['HemoDbp', 'DBP'], ['HemoMeanBp', 'Mean BP'], ['HemoSpap', 'SPAP'], ['HemoDpap', 'DPAP'], ['HemoMeanPap', 'Mean PAP']];
+  const VENT_END_FIELDS = [['ventEndVent', 'Vent'], ['ventEndMode', 'Mode'], ['ventEndFio2', 'FiO2'], ['ventEndRr', 'RR'], ['ventEndPeep', 'PEEP'], ['ventEndPip', 'PIP']];
+
+  const EPISODE_EVENT_FIELDS = [
+    { id: 'intubationStartTime', key: 'intubationStartTime', label: 'Intubation start', kind: 'datetime', color: '#7c3aed' },
+    { id: 'ecmoStartTime', key: 'ecmoStartTime', label: 'ECMO start', kind: 'datetime', color: '#0b8f8a' },
+    { id: 'ecmoFinishTime', key: 'ecmoFinishTime', label: 'ECMO finish', kind: 'datetime', color: '#1d5d9b' },
+    { id: 'extubationDateTime', key: 'extubationDateTime', label: 'Extubation', kind: 'datetime', color: '#0891b2' },
+    { id: 'icuDischargeDateTime', key: 'icuDischargeDateTime', label: 'ICU discharge', kind: 'datetime', color: '#ca8a04' },
+    { id: 'dischargeDate', key: 'dischargeDate', label: 'Discharge', kind: 'date', color: '#16a34a' },
+    { id: 'deathDate', key: 'deathDate', label: 'Death', kind: 'date', color: '#dc2626' }
+  ];
+
+  let activeEpisodeId = null;
+
+  function todayIsoDate() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function normalizeOrganismName(name) {
+    return String(name || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function seedClinicalCollections(state) {
+    if (!Array.isArray(state.patients)) state.patients = [];
+    if (!Array.isArray(state.ecmoEpisodes)) state.ecmoEpisodes = [];
+    if (!Array.isArray(state.microbiologyRecords)) state.microbiologyRecords = [];
+    if (!Array.isArray(state.labRecords)) state.labRecords = [];
+    if (!Array.isArray(state.organismTags)) state.organismTags = [];
+    if (!Array.isArray(state.ventModeTags)) state.ventModeTags = [];
+    const existingVent = new Set(state.ventModeTags.map(v => String(v.name || '').trim().toLowerCase()).filter(Boolean));
+    DEFAULT_VENT_MODES.forEach(name => {
+      const clean = String(name || '').trim();
+      const key = clean.toLowerCase();
+      if (clean && !existingVent.has(key)) {
+        state.ventModeTags.push({ id: uid('VENT'), name: clean, type: 'vent_mode', source: 'preset', createdAt: nowText() });
+        existingVent.add(key);
+      }
+    });
+    const existing = new Set(state.organismTags.map(o => normalizeOrganismName(o.name).toLowerCase()).filter(Boolean));
+    DEFAULT_ORGANISMS.forEach(name => {
+      const clean = normalizeOrganismName(name);
+      const key = clean.toLowerCase();
+      if (!existing.has(key)) {
+        state.organismTags.push({ id: uid('ORG'), name: clean, type: 'organism', source: 'preset', createdAt: nowText() });
+        existing.add(key);
+      }
+    });
+  }
+
+  function ensureClinicalCollections() {
+    return patchState(s => seedClinicalCollections(s));
+  }
+
+  function patientMaskedRegistration(regNo) {
+    const value = String(regNo || '').trim();
+    if (!value) return '-';
+    return `****${value.slice(-4)}`;
+  }
+
+  function patientDisplayLabel(patient) {
+    const pseudo = patient?.pseudoId || (patient?.registrationNo ? `P${String(patient.registrationNo).slice(-4)}` : '환자');
+    return `${pseudo} · ${patientMaskedRegistration(patient?.registrationNo)}`;
+  }
+
+  function patientById(state, patientId) {
+    return (state.patients || []).find(p => p.id === patientId) || null;
+  }
+
+  function episodeById(state, episodeId) {
+    return (state.ecmoEpisodes || []).find(e => e.id === episodeId) || null;
+  }
+
+  function episodesForPatient(state, patientId) {
+    return (state.ecmoEpisodes || [])
+      .filter(e => e.patientId === patientId)
+      .sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  }
+
+  function episodeDisplayLabel(episode) {
+    if (!episode) return 'episode 선택 안 함';
+    return episode.label || `${episode.sequence || 1}차 ECMO`;
+  }
+
+  function readBaselineConditions() {
+    const result = {};
+    $$('#baselineConditionGrid .condition-item').forEach(item => {
+      const key = item.dataset.condition;
+      const select = $('select', item);
+      const note = $('input', item);
+      const meta = CLINICAL_CONDITIONS.find(c => c.key === key);
+      result[key] = {
+        label: meta?.label || key,
+        status: select?.value || '미상',
+        note: note?.value.trim() || ''
+      };
+    });
+    return result;
+  }
+
+  function resetBaselineForm() {
+    ['patientRegNo', 'patientPseudoId', 'patientBirthDate', 'patientHeightCm', 'patientWeightKg'].forEach(id => { const el = $('#' + id); if (el) el.value = ''; });
+    const sex = $('#patientSex');
+    if (sex) sex.value = '';
+    const date = $('#patientBaselineDate');
+    if (date) date.value = todayIsoDate();
+    $$('#baselineConditionGrid .condition-item').forEach(item => {
+      const select = $('select', item);
+      const input = $('input', item);
+      if (select) select.value = '미상';
+      if (input) input.value = '';
+    });
+  }
+
+  function conditionSummary(conditions) {
+    const values = Object.values(conditions || {});
+    const yes = values.filter(v => v.status === '있음').length;
+    const no = values.filter(v => v.status === '없음').length;
+    const unknown = values.filter(v => v.status === '미상').length;
+    return `${yes}개 있음 · ${no}개 없음 · ${unknown}개 미상`;
+  }
+
+  function namedConditionText(patient, key) {
+    const item = patient?.baselineConditions?.[key];
+    if (!item) return '-';
+    const note = item.note ? ` · ${item.note}` : '';
+    return `${item.status || '미상'}${note}`;
+  }
+
+  function saveClinicalPatientMaster() {
+    ensureClinicalCollections();
+    const registrationNo = ($('#patientRegNo')?.value || '').trim();
+    if (!registrationNo) return toast('등록번호를 입력하세요. 이름은 입력하지 않습니다.', 'yellow');
+    const pseudoInput = ($('#patientPseudoId')?.value || '').trim();
+    const sex = $('#patientSex')?.value || '';
+    const birthDate = $('#patientBirthDate')?.value || '';
+    const heightCm = ($('#patientHeightCm')?.value || '').trim();
+    const weightKg = ($('#patientWeightKg')?.value || '').trim();
+    const baselineDate = ($('#patientBaselineDate')?.value || todayIsoDate()).trim();
+    const baselineConditions = readBaselineConditions();
+    const pseudoId = pseudoInput || `P${registrationNo.slice(-4)}`;
+    let savedPatientId = '';
+
+    const state = patchState(s => {
+      seedClinicalCollections(s);
+      const existing = s.patients.find(p => String(p.registrationNo || '') === registrationNo || String(p.pseudoId || '') === pseudoId);
+      if (existing) {
+        Object.assign(existing, {
+          registrationNo,
+          pseudoId: pseudoInput || existing.pseudoId || pseudoId,
+          sex,
+          birthDate,
+          heightCm,
+          weightKg,
+          baselineDate,
+          baselineConditions,
+          nameStored: false,
+          updatedAt: nowText()
+        });
+        savedPatientId = existing.id;
+      } else {
+        const patient = {
+          id: uid('PAT'),
+          registrationNo,
+          pseudoId,
+          sex,
+          birthDate,
+          heightCm,
+          weightKg,
+          baselineDate,
+          baselineConditions,
+          nameStored: false,
+          createdAt: nowText(),
+          updatedAt: nowText()
+        };
+        s.patients.unshift(patient);
+        savedPatientId = patient.id;
+      }
+    });
+    resetBaselineForm();
+    renderClinicalEntry(state);
+    ['episodePatientSelect', 'microPatientSelect', 'labPatientSelect'].forEach(id => {
+      const select = $('#' + id);
+      if (select && [...select.options].some(o => o.value === savedPatientId)) select.value = savedPatientId;
+    });
+    renderEpisodeWorkspace(readState());
+    renderEpisodeSelects(readState());
+    addAudit('clinical patient master save', 'patient', patientMaskedRegistration(registrationNo));
+    toast('환자 master와 baseline 세트를 저장했습니다. 이제 ECMO episode를 추가할 수 있습니다.');
+  }
+
+  function renderClinicalPatients(state = readState()) {
+    const body = $('#clinicalPatientBody');
+    if (!body) return;
+    const patients = state.patients || [];
+    if (!patients.length) return setTableEmpty(body, 10, '아직 등록된 환자가 없습니다.', '등록번호와 baseline 세트를 저장하세요.');
+    body.innerHTML = patients.map(p => `<tr>
+      <td><strong>${escapeHtml(p.pseudoId || '-')}</strong></td>
+      <td>${escapeHtml(patientMaskedRegistration(p.registrationNo))}</td>
+      <td>${escapeHtml(p.sex || '-')}</td>
+      <td>${escapeHtml(p.birthDate || '-')}</td>
+      <td>${escapeHtml([p.heightCm ? `${p.heightCm} cm` : '', p.weightKg ? `${p.weightKg} kg` : ''].filter(Boolean).join(' / ') || '-')}</td>
+      <td>${escapeHtml(p.baselineDate || '-')}</td>
+      <td>${escapeHtml(conditionSummary(p.baselineConditions))}</td>
+      <td>${escapeHtml(namedConditionText(p, 'allergy'))}</td>
+      <td>${escapeHtml(namedConditionText(p, 'medication'))}</td>
+      <td><button class="btn ghost" data-delete-clinical-patient="${escapeHtml(p.id)}">삭제</button></td>
+    </tr>`).join('');
+    $$('[data-delete-clinical-patient]', body).forEach(btn => btn.addEventListener('click', () => {
+      if (!confirm('이 환자 master와 연결된 ECMO episode, 미생물검사, 진단검사 기록을 삭제할까요?')) return;
+      const patientId = btn.dataset.deleteClinicalPatient;
+      const state = patchState(s => {
+        s.patients = (s.patients || []).filter(p => p.id !== patientId);
+        s.studyPatients = (s.studyPatients || []).filter(sp => sp.patientId !== patientId);
+        s.ecmoEpisodes = (s.ecmoEpisodes || []).filter(e => e.patientId !== patientId);
+        s.microbiologyRecords = (s.microbiologyRecords || []).filter(r => r.patientId !== patientId);
+        s.labRecords = (s.labRecords || []).filter(r => r.patientId !== patientId);
+      });
+      if (activeEpisodeId && !episodeById(state, activeEpisodeId)) activeEpisodeId = null;
+      renderClinicalEntry(state);
+      toast('환자 master를 삭제했습니다.');
+    }));
+  }
+
+  function patientOptions(state, placeholder = '환자를 선택하세요') {
+    const patients = state.patients || [];
+    if (!patients.length) return option('', '등록된 환자가 없습니다.');
+    return option('', placeholder) + patients.map(p => option(p.id, patientDisplayLabel(p))).join('');
+  }
+
+  function renderClinicalPatientSelects(state = readState()) {
+    ['episodePatientSelect', 'microPatientSelect', 'labPatientSelect'].forEach(id => {
+      const select = $('#' + id);
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = patientOptions(state);
+      if ([...select.options].some(o => o.value === current)) select.value = current;
+      if (!select.value && (state.patients || [])[0]) select.value = state.patients[0].id;
+    });
+  }
+
+  function renderEpisodeSelectFor(patientSelectId, episodeSelectId, state = readState()) {
+    const patientId = $('#' + patientSelectId)?.value || '';
+    const select = $('#' + episodeSelectId);
+    if (!select) return;
+    const current = select.value;
+    const episodes = episodesForPatient(state, patientId);
+    select.innerHTML = option('', 'episode 선택 안 함') + episodes.map(e => option(e.id, episodeDisplayLabel(e))).join('');
+    if ([...select.options].some(o => o.value === current)) select.value = current;
+    else if (episodes[0]) select.value = episodes[0].id;
+  }
+
+  function renderEpisodeSelects(state = readState()) {
+    renderEpisodeSelectFor('microPatientSelect', 'microEpisodeSelect', state);
+    renderEpisodeSelectFor('labPatientSelect', 'labEpisodeSelect', state);
+  }
+
+  function clinicalNumberOrBlank(id) {
+    const raw = ($('#' + id)?.value || '').trim();
+    if (raw === '') return '';
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function setClinicalValue(id, value) {
+    const el = $('#' + id);
+    if (el) el.value = value ?? '';
+  }
+
+  function collectFields(fieldPairs) {
+    const out = {};
+    fieldPairs.forEach(([id, key]) => {
+      const el = $('#' + id);
+      if (!el) return;
+      const value = el.tagName === 'SELECT' || el.type === 'date' || el.type === 'datetime-local' ? (el.value || '') : clinicalNumberOrBlank(id);
+      out[key] = value;
+    });
+    return out;
+  }
+
+  function fillFields(fieldPairs, values = {}) {
+    fieldPairs.forEach(([id, key]) => setClinicalValue(id, values?.[key] ?? ''));
+  }
+
+  function clearEpisodeMeasurementForm() {
+    setClinicalValue('preEcmoCheckDateTime', '');
+    fillFields(PRE_ABGA_FIELDS, {});
+    fillFields(PRE_LAB_FIELDS, {});
+    DURING_ECMO_TIMEPOINTS.forEach(tp => {
+      setClinicalValue(`${tp.prefix}DateTime`, '');
+      setClinicalValue(`${tp.prefix}PumpFlow`, '');
+      fillFields(DURING_ABGA_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key]), {});
+      fillFields(DURING_VENT_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key]), {});
+      fillFields(DURING_HEMO_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key]), {});
+    });
+    fillFields(VENT_END_FIELDS, {});
+    setClinicalValue('newVentModeName', '');
+  }
+
+  function collectEpisodeMeasurements() {
+    const measurements = {
+      preEcmo: {
+        checkDateTime: $('#preEcmoCheckDateTime')?.value || '',
+        abga: collectFields(PRE_ABGA_FIELDS),
+        labs: collectFields(PRE_LAB_FIELDS)
+      },
+      duringEcmo: {},
+      ventEnd: collectFields(VENT_END_FIELDS)
+    };
+    DURING_ECMO_TIMEPOINTS.forEach(tp => {
+      measurements.duringEcmo[tp.key] = {
+        label: tp.label,
+        checkDateTime: $(`#${tp.prefix}DateTime`)?.value || '',
+        pumpFlow: clinicalNumberOrBlank(`${tp.prefix}PumpFlow`),
+        abga: collectFields(DURING_ABGA_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key])),
+        vent: collectFields(DURING_VENT_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key])),
+        hemodynamics: collectFields(DURING_HEMO_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key]))
+      };
+    });
+    return measurements;
+  }
+
+  function fillEpisodeMeasurementForm(episode) {
+    if (!episode) return clearEpisodeMeasurementForm();
+    const m = episode.measurements || {};
+    setClinicalValue('preEcmoCheckDateTime', m.preEcmo?.checkDateTime || '');
+    fillFields(PRE_ABGA_FIELDS, m.preEcmo?.abga || {});
+    fillFields(PRE_LAB_FIELDS, m.preEcmo?.labs || {});
+    DURING_ECMO_TIMEPOINTS.forEach(tp => {
+      const section = m.duringEcmo?.[tp.key] || {};
+      setClinicalValue(`${tp.prefix}DateTime`, section.checkDateTime || '');
+      setClinicalValue(`${tp.prefix}PumpFlow`, section.pumpFlow ?? '');
+      fillFields(DURING_ABGA_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key]), section.abga || {});
+      fillFields(DURING_VENT_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key]), section.vent || {});
+      fillFields(DURING_HEMO_SUFFIXES.map(([suffix, key]) => [`${tp.prefix}${suffix}`, key]), section.hemodynamics || {});
+    });
+    fillFields(VENT_END_FIELDS, m.ventEnd || {});
+  }
+
+  function clearEpisodeEventForm() {
+    EPISODE_EVENT_FIELDS.forEach(f => { const el = $('#' + f.id); if (el) el.value = ''; });
+    const alive = $('#dischargeAlive');
+    if (alive) alive.value = '';
+    const note = $('#episodeNote');
+    if (note) note.value = '';
+    const label = $('#activeEpisodeLabel');
+    if (label) label.value = '';
+    clearEpisodeMeasurementForm();
+  }
+
+  function fillEpisodeEventForm(episode) {
+    if (!episode) return clearEpisodeEventForm();
+    const events = episode.events || {};
+    EPISODE_EVENT_FIELDS.forEach(f => { const el = $('#' + f.id); if (el) el.value = events[f.key] || ''; });
+    const alive = $('#dischargeAlive');
+    if (alive) alive.value = episode.dischargeAlive || '';
+    const note = $('#episodeNote');
+    if (note) note.value = episode.note || '';
+    const label = $('#activeEpisodeLabel');
+    if (label) label.value = episodeDisplayLabel(episode);
+    fillEpisodeMeasurementForm(episode);
+  }
+
+  function addEcmoEpisode() {
+    ensureClinicalCollections();
+    const patientId = $('#episodePatientSelect')?.value || '';
+    if (!patientId) return toast('episode를 추가할 환자를 먼저 선택하세요.', 'yellow');
+    const stateBefore = readState();
+    const count = episodesForPatient(stateBefore, patientId).length + 1;
+    let newEpisodeId = '';
+    const state = patchState(s => {
+      seedClinicalCollections(s);
+      const patient = patientById(s, patientId);
+      const episode = {
+        id: uid('ECMO'),
+        patientId,
+        patientLabel: patientDisplayLabel(patient),
+        sequence: count,
+        label: `${count}차 ECMO`,
+        events: {},
+        measurements: {},
+        dischargeAlive: '',
+        note: '',
+        createdAt: nowText(),
+        updatedAt: nowText(),
+        createdBy: USER
+      };
+      s.ecmoEpisodes.push(episode);
+      newEpisodeId = episode.id;
+    });
+    activeEpisodeId = newEpisodeId;
+    renderClinicalEntry(state);
+    addAudit('ecmo episode add', 'episode', `${patientDisplayLabel(patientById(stateBefore, patientId))} ${count}차 ECMO`);
+    toast(`${count}차 ECMO episode를 추가했습니다.`);
+  }
+
+  function renderEpisodeTabs(state = readState()) {
+    const wrap = $('#episodeTabs');
+    if (!wrap) return;
+    const patientId = $('#episodePatientSelect')?.value || '';
+    const episodes = episodesForPatient(state, patientId);
+    if (!patientId) {
+      wrap.innerHTML = '<span class="badge gray">환자를 선택하세요.</span>';
+      clearEpisodeEventForm();
+      return;
+    }
+    if (!episodes.length) {
+      wrap.innerHTML = '<span class="badge gray">아직 episode가 없습니다. + 버튼으로 1차 ECMO를 추가하세요.</span>';
+      activeEpisodeId = null;
+      clearEpisodeEventForm();
+      return;
+    }
+    if (!episodes.some(e => e.id === activeEpisodeId)) activeEpisodeId = episodes[0].id;
+    wrap.innerHTML = episodes.map(e => `<button class="btn ${e.id === activeEpisodeId ? 'teal' : 'secondary'}" type="button" data-episode-tab="${escapeHtml(e.id)}">${escapeHtml(episodeDisplayLabel(e))}</button>`).join('');
+    $$('[data-episode-tab]', wrap).forEach(btn => btn.addEventListener('click', () => {
+      activeEpisodeId = btn.dataset.episodeTab;
+      renderEpisodeWorkspace(readState());
+    }));
+    fillEpisodeEventForm(episodeById(state, activeEpisodeId));
+    [['microPatientSelect', 'microEpisodeSelect'], ['labPatientSelect', 'labEpisodeSelect']].forEach(([patientSelectId, episodeSelectId]) => {
+      const pSelect = $('#' + patientSelectId);
+      const eSelect = $('#' + episodeSelectId);
+      if (pSelect && eSelect && pSelect.value === patientId && activeEpisodeId && [...eSelect.options].some(o => o.value === activeEpisodeId)) {
+        eSelect.value = activeEpisodeId;
+      }
+    });
+  }
+
+  function saveEpisodeEvents() {
+    ensureClinicalCollections();
+    if (!activeEpisodeId) return toast('저장할 ECMO episode를 먼저 추가하거나 선택하세요.', 'yellow');
+    const events = {};
+    EPISODE_EVENT_FIELDS.forEach(f => { events[f.key] = $('#' + f.id)?.value || ''; });
+    const dischargeAlive = $('#dischargeAlive')?.value || '';
+    const note = ($('#episodeNote')?.value || '').trim();
+    const state = patchState(s => {
+      seedClinicalCollections(s);
+      const ep = episodeById(s, activeEpisodeId);
+      if (!ep) return;
+      ep.events = events;
+      ep.dischargeAlive = dischargeAlive;
+      ep.note = note;
+      ep.updatedAt = nowText();
+    });
+    renderClinicalEntry(state);
+    addAudit('ecmo episode update', 'episode', episodeDisplayLabel(episodeById(state, activeEpisodeId)));
+    toast('현재 episode의 시간 이벤트를 저장했습니다.');
+  }
+
+  function saveEpisodeMeasurements() {
+    ensureClinicalCollections();
+    if (!activeEpisodeId) return toast('검사/vent/hemodynamics를 저장할 ECMO episode를 먼저 추가하거나 선택하세요.', 'yellow');
+    const measurements = collectEpisodeMeasurements();
+    const allNums = [];
+    function crawl(obj) {
+      Object.values(obj || {}).forEach(v => {
+        if (Number.isNaN(v)) allNums.push(v);
+        else if (v && typeof v === 'object') crawl(v);
+      });
+    }
+    crawl(measurements);
+    if (allNums.length) return toast('검사값과 flow, vent, hemodynamics 항목은 숫자로 입력하세요.', 'yellow');
+    const state = patchState(s => {
+      seedClinicalCollections(s);
+      const ep = episodeById(s, activeEpisodeId);
+      if (!ep) return;
+      ep.measurements = measurements;
+      ep.updatedAt = nowText();
+    });
+    renderClinicalEntry(state);
+    addAudit('ecmo episode measurement update', 'episode', episodeDisplayLabel(episodeById(state, activeEpisodeId)));
+    toast('현재 episode의 Pre-ECMO/4h/24h/vent 종료 정보를 저장했습니다.');
+  }
+
+  function renderVentModeSelects(state = readState()) {
+    const modes = [...(state.ventModeTags || [])].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'));
+    $$('[data-vent-mode-select]').forEach(select => {
+      const current = select.value;
+      select.innerHTML = option('', '선택 안 함') + modes.map(m => option(m.name, m.name)).join('');
+      if ([...select.options].some(o => o.value === current)) select.value = current;
+    });
+  }
+
+  function addVentModeTag() {
+    ensureClinicalCollections();
+    const input = $('#newVentModeName');
+    const name = String(input?.value || '').trim();
+    if (!name) return toast('추가할 vent mode를 입력하세요.', 'yellow');
+    const state = patchState(s => {
+      seedClinicalCollections(s);
+      const exists = (s.ventModeTags || []).some(v => String(v.name || '').trim().toLowerCase() === name.toLowerCase());
+      if (!exists) s.ventModeTags.push({ id: uid('VENT'), name, type: 'vent_mode', source: 'user', createdAt: nowText() });
+    });
+    if (input) input.value = '';
+    renderVentModeSelects(state);
+    addAudit('vent mode add', 'clinical vocab', name);
+    toast('Vent mode를 드롭다운에 추가했습니다.');
+  }
+
+  function deleteActiveEpisode() {
+    if (!activeEpisodeId) return toast('삭제할 episode가 없습니다.', 'yellow');
+    if (!confirm('현재 ECMO episode와 연결된 검사 기록의 episode 연결을 해제할까요? 환자 master는 삭제되지 않습니다.')) return;
+    const deletedId = activeEpisodeId;
+    const state = patchState(s => {
+      s.ecmoEpisodes = (s.ecmoEpisodes || []).filter(e => e.id !== deletedId);
+      (s.microbiologyRecords || []).forEach(r => { if (r.episodeId === deletedId) r.episodeId = ''; });
+      (s.labRecords || []).forEach(r => { if (r.episodeId === deletedId) r.episodeId = ''; });
+    });
+    activeEpisodeId = null;
+    renderClinicalEntry(state);
+    toast('episode를 삭제하고 검사 기록 연결을 해제했습니다.');
+  }
+
+  function parseEventDate(value) {
+    if (!value) return null;
+    const normalized = String(value).includes('T') ? value : `${value}T12:00`;
+    const d = new Date(normalized);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function formatEventDate(value) {
+    if (!value) return '-';
+    return String(value).replace('T', ' ');
+  }
+
+  function renderEpisodeTimeline(state = readState()) {
+    const wrap = $('#episodeTimeline');
+    if (!wrap) return;
+    const patientId = $('#episodePatientSelect')?.value || '';
+    const episodes = episodesForPatient(state, patientId);
+    if (!patientId) {
+      wrap.innerHTML = '<div class="empty-row"><strong>환자를 선택하면 episode 타임라인이 표시됩니다.</strong></div>';
+      return;
+    }
+    if (!episodes.length) {
+      wrap.innerHTML = '<div class="empty-row"><strong>episode를 추가하면 타임라인이 표시됩니다.</strong><br><span>+ ECMO episode 추가 버튼을 누르세요.</span></div>';
+      return;
+    }
+
+    const points = [];
+    episodes.forEach(ep => {
+      const events = ep.events || {};
+      EPISODE_EVENT_FIELDS.forEach(f => {
+        const date = parseEventDate(events[f.key]);
+        if (date) points.push({ episode: ep, field: f, date, value: events[f.key] });
+      });
+    });
+    if (!points.length) {
+      wrap.innerHTML = `<div class="empty-row"><strong>저장된 날짜 이벤트가 없습니다.</strong><br><span>ECMO start, intubation, discharge, death 등 날짜를 저장하면 2D timeline이 표시됩니다.</span></div>`;
+      return;
+    }
+    let min = Math.min(...points.map(p => p.date.getTime()));
+    let max = Math.max(...points.map(p => p.date.getTime()));
+    if (min === max) {
+      min -= 24 * 3600 * 1000;
+      max += 24 * 3600 * 1000;
+    }
+    const span = max - min || 1;
+    const leftPct = date => Math.max(1, Math.min(99, ((date.getTime() - min) / span) * 100));
+    const legend = EPISODE_EVENT_FIELDS.map(f => `<span class="legend-chip"><span class="dot" style="background:${f.color}"></span>${escapeHtml(f.label)}</span>`).join('');
+    const rows = episodes.map(ep => {
+      const epPoints = points.filter(p => p.episode.id === ep.id);
+      const markers = epPoints.map(p => {
+        const left = leftPct(p.date);
+        return `<span class="timeline-marker" tabindex="0" style="left:${left}%;background:${p.field.color}" title="${escapeHtml(p.field.label)} · ${escapeHtml(formatEventDate(p.value))}"><b>${escapeHtml(p.field.label)}</b><small>${escapeHtml(formatEventDate(p.value))}</small></span>`;
+      }).join('');
+      const aliveText = ep.dischargeAlive === 'alive' ? '생존퇴원' : ep.dischargeAlive === 'dead' ? '사망' : ep.dischargeAlive === 'unknown' ? '미상' : '공란';
+      return `<div class="timeline-row">
+        <div class="timeline-label"><strong>${escapeHtml(episodeDisplayLabel(ep))}</strong><span>${escapeHtml(aliveText)}${ep.note ? ' · ' + escapeHtml(ep.note) : ''}</span></div>
+        <div class="timeline-lane"><span class="timeline-rail"></span>${markers || '<span class="timeline-no-marker">저장된 이벤트 없음</span>'}</div>
+      </div>`;
+    }).join('');
+    wrap.innerHTML = `<div class="timeline-scale"><span>${escapeHtml(new Date(min).toISOString().slice(0, 10))}</span><span>${escapeHtml(new Date(max).toISOString().slice(0, 10))}</span></div>${rows}<div class="timeline-legend">${legend}</div>`;
+  }
+
+  function renderEpisodeWorkspace(state = readState()) {
+    renderEpisodeTabs(state);
+    renderEpisodeTimeline(state);
+  }
+
+  function renderOrganismSelect(state = readState(), selectedName = '') {
+    const select = $('#organismSelect');
+    if (!select) return;
+    const organisms = [...(state.organismTags || [])]
+      .filter(o => normalizeOrganismName(o.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    select.innerHTML = organisms.length
+      ? option('', '균주 태그 선택') + organisms.map(o => option(o.name, o.name)).join('')
+      : option('', '균주 태그 없음');
+    if (selectedName && [...select.options].some(o => o.value === selectedName)) select.value = selectedName;
+    const badgeEl = $('#organismCountBadge');
+    if (badgeEl) badgeEl.textContent = `균주 태그 ${organisms.length}개`;
+  }
+
+  function addOrganismTag() {
+    ensureClinicalCollections();
+    const input = $('#newOrganismName');
+    const name = normalizeOrganismName(input?.value || '');
+    if (!name) return toast('추가할 균주 이름을 입력하세요.', 'yellow');
+    const state = patchState(s => {
+      seedClinicalCollections(s);
+      const exists = (s.organismTags || []).some(o => normalizeOrganismName(o.name).toLowerCase() === name.toLowerCase());
+      if (!exists) s.organismTags.push({ id: uid('ORG'), name, type: 'organism', source: 'user', createdAt: nowText() });
+    });
+    if (input) input.value = '';
+    renderOrganismSelect(state, name);
+    addAudit('organism tag add', 'tag', name);
+    toast('균주 태그를 추가했습니다.');
+  }
+
+  function saveMicrobiologyRecord() {
+    ensureClinicalCollections();
+    const stateBefore = readState();
+    const patientId = $('#microPatientSelect')?.value || '';
+    const episodeId = $('#microEpisodeSelect')?.value || '';
+    const date = $('#microDate')?.value || '';
+    const specimenSite = $('#microSpecimenSite')?.value || '';
+    const organismName = $('#organismSelect')?.value || '';
+    const result = $('#microResult')?.value || '';
+    if (!patientId) return toast('미생물검사를 연결할 환자를 선택하세요.', 'yellow');
+    if (!date) return toast('미생물검사 시행 날짜를 선택하세요.', 'yellow');
+    if (!organismName) return toast('균주 태그를 선택하거나 신규 추가하세요.', 'yellow');
+    if (!['R', 'U', 'B'].includes(result)) return toast('검사 결과는 R, U, B 중 하나여야 합니다.', 'yellow');
+    const patient = patientById(stateBefore, patientId);
+    const episode = episodeById(stateBefore, episodeId);
+    const state = patchState(s => {
+      seedClinicalCollections(s);
+      s.microbiologyRecords.unshift({
+        id: uid('MIC'),
+        patientId,
+        episodeId,
+        episodeLabel: episodeDisplayLabel(episode),
+        patientLabel: patientDisplayLabel(patient),
+        date,
+        specimenSite,
+        organismName,
+        result,
+        createdAt: nowText(),
+        createdBy: USER
+      });
+    });
+    renderClinicalEntry(state);
+    addAudit('microbiology save', 'clinical lab', `${patientDisplayLabel(patient)} ${episodeDisplayLabel(episode)} ${organismName} ${result}`);
+    toast('미생물검사 기록을 저장했습니다.');
+  }
+
+  function renderMicrobiologyRecords(state = readState()) {
+    const body = $('#microRecordBody');
+    if (!body) return;
+    const records = state.microbiologyRecords || [];
+    if (!records.length) return setTableEmpty(body, 7, '저장된 미생물검사 기록이 없습니다.', '시행 날짜, 채취부위, 균주 태그, 결과를 저장하세요.');
+    body.innerHTML = records.map(r => {
+      const patient = patientById(state, r.patientId);
+      const episode = episodeById(state, r.episodeId);
+      return `<tr>
+        <td>${escapeHtml(patient ? patientDisplayLabel(patient) : r.patientLabel || '-')}</td>
+        <td>${escapeHtml(episode ? episodeDisplayLabel(episode) : r.episodeLabel || '-')}</td>
+        <td>${escapeHtml(r.date || '-')}</td>
+        <td>${escapeHtml(r.specimenSite || '-')}</td>
+        <td><strong>${escapeHtml(r.organismName || '-')}</strong></td>
+        <td>${badge(r.result || '-', r.result === 'R' ? 'red' : r.result === 'B' ? 'yellow' : 'gray')}</td>
+        <td><button class="btn ghost" data-delete-micro="${escapeHtml(r.id)}">삭제</button></td>
+      </tr>`;
+    }).join('');
+    $$('[data-delete-micro]', body).forEach(btn => btn.addEventListener('click', () => {
+      const state = patchState(s => { s.microbiologyRecords = (s.microbiologyRecords || []).filter(r => r.id !== btn.dataset.deleteMicro); });
+      renderClinicalEntry(state);
+      toast('미생물검사 기록을 삭제했습니다.');
+    }));
+  }
+
+  function asClinicalNumber(id) {
+    const raw = ($('#' + id)?.value || '').trim();
+    if (raw === '') return '';
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function saveLabRecord() {
+    ensureClinicalCollections();
+    const stateBefore = readState();
+    const patientId = $('#labPatientSelect')?.value || '';
+    const episodeId = $('#labEpisodeSelect')?.value || '';
+    const date = $('#labDate')?.value || '';
+    const wbc = asClinicalNumber('labWbc');
+    const crp = asClinicalNumber('labCrp');
+    const pct = asClinicalNumber('labPct');
+    if (!patientId) return toast('진단검사를 연결할 환자를 선택하세요.', 'yellow');
+    if (!date) return toast('진단검사 날짜를 선택하세요.', 'yellow');
+    if ([wbc, crp, pct].some(v => Number.isNaN(v))) return toast('WBC, CRP, procalcitonin은 숫자로 입력하세요.', 'yellow');
+    if (wbc === '' && crp === '' && pct === '') return toast('WBC, CRP, procalcitonin 중 하나 이상 입력하세요.', 'yellow');
+    const patient = patientById(stateBefore, patientId);
+    const episode = episodeById(stateBefore, episodeId);
+    const state = patchState(s => {
+      seedClinicalCollections(s);
+      s.labRecords.unshift({
+        id: uid('LAB'),
+        patientId,
+        episodeId,
+        episodeLabel: episodeDisplayLabel(episode),
+        patientLabel: patientDisplayLabel(patient),
+        date,
+        WBC: wbc,
+        CRP: crp,
+        procalcitonin: pct,
+        createdAt: nowText(),
+        createdBy: USER
+      });
+    });
+    ['labWbc', 'labCrp', 'labPct'].forEach(id => { const el = $('#' + id); if (el) el.value = ''; });
+    renderClinicalEntry(state);
+    addAudit('diagnostic lab save', 'clinical lab', `${patientDisplayLabel(patient)} ${episodeDisplayLabel(episode)}`);
+    toast('진단검사 기록을 저장했습니다.');
+  }
+
+  function renderLabRecords(state = readState()) {
+    const body = $('#labRecordBody');
+    if (!body) return;
+    const records = state.labRecords || [];
+    if (!records.length) return setTableEmpty(body, 7, '저장된 진단검사 기록이 없습니다.', 'WBC, CRP, procalcitonin 값을 입력하세요.');
+    const val = v => (v === '' || v === null || v === undefined) ? '-' : String(v);
+    body.innerHTML = records.map(r => {
+      const patient = patientById(state, r.patientId);
+      const episode = episodeById(state, r.episodeId);
+      return `<tr>
+        <td>${escapeHtml(patient ? patientDisplayLabel(patient) : r.patientLabel || '-')}</td>
+        <td>${escapeHtml(episode ? episodeDisplayLabel(episode) : r.episodeLabel || '-')}</td>
+        <td>${escapeHtml(r.date || '-')}</td>
+        <td>${escapeHtml(val(r.WBC))}</td>
+        <td>${escapeHtml(val(r.CRP))}</td>
+        <td>${escapeHtml(val(r.procalcitonin))}</td>
+        <td><button class="btn ghost" data-delete-lab="${escapeHtml(r.id)}">삭제</button></td>
+      </tr>`;
+    }).join('');
+    $$('[data-delete-lab]', body).forEach(btn => btn.addEventListener('click', () => {
+      const state = patchState(s => { s.labRecords = (s.labRecords || []).filter(r => r.id !== btn.dataset.deleteLab); });
+      renderClinicalEntry(state);
+      toast('진단검사 기록을 삭제했습니다.');
+    }));
+  }
+
+  function updateClinicalMetrics(state = readState()) {
+    const patients = state.patients || [];
+    const episodes = state.ecmoEpisodes || [];
+    const micro = state.microbiologyRecords || [];
+    const labs = state.labRecords || [];
+    const baselineSets = patients.filter(p => p.baselineConditions && Object.keys(p.baselineConditions).length).length;
+    if ($('#metricPatientCount')) $('#metricPatientCount').textContent = `${patients.length}명`;
+    if ($('#metricBaselineCount')) $('#metricBaselineCount').textContent = `${baselineSets}세트`;
+    if ($('#metricEpisodeCount')) $('#metricEpisodeCount').textContent = `${episodes.length}개`;
+    if ($('#metricClinicalRecordCount')) $('#metricClinicalRecordCount').textContent = `${micro.length + labs.length}건`;
+  }
+
+  function renderClinicalEntry(state = readState()) {
+    seedClinicalCollections(state);
+    renderClinicalPatients(state);
+    renderClinicalPatientSelects(state);
+    renderEpisodeSelects(state);
+    renderVentModeSelects(state);
+    renderEpisodeWorkspace(state);
+    renderOrganismSelect(state, $('#organismSelect')?.value || '');
+    renderMicrobiologyRecords(state);
+    renderLabRecords(state);
+    updateClinicalMetrics(state);
+  }
+
+  function initPatientUpload() {
+    const state = ensureClinicalCollections();
+    const baselineDate = $('#patientBaselineDate');
+    const microDate = $('#microDate');
+    const labDate = $('#labDate');
+    if (baselineDate && !baselineDate.value) baselineDate.value = todayIsoDate();
+    if (microDate && !microDate.value) microDate.value = todayIsoDate();
+    if (labDate && !labDate.value) labDate.value = todayIsoDate();
+
+    $('#clinicalPatientSaveBtn')?.addEventListener('click', saveClinicalPatientMaster);
+    $('#goEpisodeEntryBtn')?.addEventListener('click', () => $('#episode-entry-step')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    $('#addEcmoEpisodeBtn')?.addEventListener('click', addEcmoEpisode);
+    $('#episodeSaveBtn')?.addEventListener('click', saveEpisodeEvents);
+    $('#episodeMeasurementSaveBtn')?.addEventListener('click', saveEpisodeMeasurements);
+    $('#episodeDeleteBtn')?.addEventListener('click', deleteActiveEpisode);
+    $('#ventModeAddBtn')?.addEventListener('click', addVentModeTag);
+    $('#newVentModeName')?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addVentModeTag(); } });
+    $('#episodePatientSelect')?.addEventListener('change', () => { activeEpisodeId = null; renderEpisodeWorkspace(readState()); renderEpisodeSelects(readState()); });
+    $('#microPatientSelect')?.addEventListener('change', () => renderEpisodeSelects(readState()));
+    $('#labPatientSelect')?.addEventListener('change', () => renderEpisodeSelects(readState()));
+    $('#organismAddBtn')?.addEventListener('click', addOrganismTag);
+    $('#newOrganismName')?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addOrganismTag(); } });
+    $('#microSaveBtn')?.addEventListener('click', saveMicrobiologyRecord);
+    $('#labSaveBtn')?.addEventListener('click', saveLabRecord);
+
+    renderClinicalEntry(state);
+  }
 
   document.addEventListener('DOMContentLoaded', () => {
     commonInit();
