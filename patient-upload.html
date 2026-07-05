@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>연구자료 직접 입력 | EXCITE plus</title>
+<title>환자 정보 및 임상검사 입력 | EXCITE plus</title>
 <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
@@ -14,7 +14,7 @@
   </a>
   <nav class="top-nav">
     <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
-      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
+      <a href="patient-upload.html">환자/검사 정보 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
     </div></div>
     <a href="research-projects.html" data-href="research-projects.html">연구</a>
     <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
@@ -27,7 +27,7 @@
 </header>
 <div class="shell">
 <aside class="sidebar"><div class="title">작업공간</div>
-  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
+  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>환자/검사 정보 입력</strong><span>등록번호, 과거력, ECMO episode, 검사</span></a>
   <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
   <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
   <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
@@ -37,132 +37,243 @@
   <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
 </aside>
 <main class="main">
-<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>연구자료 직접 입력</h2><p>엑셀 양식을 강제하지 않고, 연구 태그를 먼저 선택한 뒤 그 안에서 비교군·기준시점·관찰구간·Timepoint·자료영역과 변수를 직접 입력합니다.</p></section>
+<section class="page-hero"><div class="breadcrumb">EXCITE plus · Clinical data entry</div><h2>환자 정보 및 ECMO episode 입력</h2><p>이름은 입력하지 않고 등록번호를 기준으로 환자 master를 만듭니다. 과거력·알레르기·투약은 환자와 계속 함께 가는 고정 정보로 저장하고, ECMO 치료는 1차·2차 episode sheet로 추가합니다. 미생물검사와 진단검사는 선택한 episode에 누적합니다.</p></section>
 
 <section class="grid four">
-  <div class="card metric"><div><div class="value">0명</div><div class="label">등록된 환자 master</div></div><span class="delta">대기</span></div>
-  <div class="card metric"><div><div class="value">0개</div><div class="label">선택된 변수</div></div><span class="delta">대기</span></div>
-  <div class="card metric"><div><div class="value">0건</div><div class="label">저장 대기 자료</div></div><span class="delta">대기</span></div>
-  <div class="card metric"><div><div class="value">0건</div><div class="label">매칭 오류</div></div><span class="delta">대기</span></div>
+  <div class="card metric"><div><div class="value" id="metricPatientCount">0명</div><div class="label">환자 master</div></div><span class="delta">등록번호 기반</span></div>
+  <div class="card metric"><div><div class="value" id="metricBaselineCount">0세트</div><div class="label">과거력/투약 세트</div></div><span class="delta">환자 고정 정보</span></div>
+  <div class="card metric"><div><div class="value" id="metricEpisodeCount">0개</div><div class="label">ECMO episode</div></div><span class="delta">1차·2차 추가 가능</span></div>
+  <div class="card metric"><div><div class="value" id="metricClinicalRecordCount">0건</div><div class="label">검사 기록</div></div><span class="delta">미생물 + 진단검사</span></div>
 </section>
 
-<section class="split">
-  <div class="grid">
+<section class="card clinical-step-card" id="patient-master-step">
+  <div class="toolbar">
+    <div><h3>1. 환자 master 등록</h3><p class="small-muted">이름은 저장하지 않습니다. 등록번호와 당시 확인한 과거력/투약 세트만 환자 고정 정보로 저장합니다.</p></div>
+    <span class="badge teal">patient master</span>
+  </div>
+  <div class="notice-box"><strong>저장 원칙</strong><br>등록번호는 내부 매칭용으로 저장하고, 목록에서는 마지막 4자리만 보여줍니다. 고혈압, 당뇨, 폐결핵, 간염, 암, 수술기왕력, 뇌졸중, 고지혈증, 말초동맥 및 경동맥질환, 알레르기, 투약은 환자와 함께 계속 따라가는 baseline 세트입니다.</div>
 
-    <div class="card">
-      <div class="toolbar"><h3>0. 고정 환자 정보 등록</h3><span class="badge teal">patient master</span></div>
-      <p class="muted">환자 번호와 사람 정보는 연구가 바뀌어도 고정됩니다. 연구 태그 안에서는 이 환자 master를 불러와 대상자로 배정합니다.</p>
-      <div class="grid three">
-        <div class="field"><label>등록번호 또는 원내 번호</label><input class="input" placeholder="분석 화면에서는 마지막 4자리만 표시"></div>
-        <div class="field"><label>가명 연구대상자 ID</label><input class="input" placeholder="예: P001"></div>
-        <div class="field"><label>성별</label><select><option value="">선택 안 함</option><option>남</option><option>여</option><option>기타/미상</option></select></div>
-        <div class="field"><label>출생연도</label><input class="input" placeholder="예: 1950"></div>
-        <div class="field"><label>키</label><input class="input" placeholder="cm"></div>
-        <div class="field"><label>몸무게</label><input class="input" placeholder="kg"></div>
-      </div>
-      <div class="field" style="margin-top:12px"><label>비고</label><textarea rows="2" placeholder="분석용으로 필요한 환자 master 메모"></textarea></div>
-      <div class="toolbar" style="margin-top:12px"><button class="btn teal" id="patientMasterSaveBtn">환자 master 저장</button></div>
-      <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>가명 ID</th><th>등록번호</th><th>성별</th><th>출생연도</th><th>키</th><th>몸무게</th><th>작업</th></tr></thead><tbody id="patientMasterBody"><tr class="empty-row"><td colspan="7"><strong>아직 등록된 환자 master가 없습니다.</strong><br><span>고정 환자 정보를 먼저 저장하세요.</span></td></tr></tbody></table></div>
+  <div class="grid four" style="margin-top:14px">
+    <div class="field"><label>등록번호 <span class="required-dot">필수</span></label><input id="patientRegNo" class="input" placeholder="이름은 입력하지 않습니다"></div>
+    <div class="field"><label>환자 가명 ID</label><input id="patientPseudoId" class="input" placeholder="이니셜을 적어주세요"></div>
+    <div class="field"><label>성별</label><select id="patientSex"><option value="">선택 안 함</option><option value="남자">남자</option><option value="여자">여자</option></select></div>
+    <div class="field"><label>생년월일</label><input id="patientBirthDate" class="input" type="date"></div>
+    <div class="field"><label>키, cm</label><input id="patientHeightCm" class="input" type="number" step="any" placeholder="숫자"></div>
+    <div class="field"><label>몸무게, kg</label><input id="patientWeightKg" class="input" type="number" step="any" placeholder="숫자"></div>
+    <div class="field"><label>등록 기준일</label><input id="patientBaselineDate" class="input" type="date"></div>
+  </div>
+
+  <div class="section-title" style="margin-top:18px"><h2>당시 과거력 / 알레르기 / 투약 세트</h2><span class="badge gray">각 항목은 없음·있음·미상 중 하나로 저장</span></div>
+  <div class="condition-grid" id="baselineConditionGrid">
+    <div class="condition-item" data-condition="hypertension"><strong>고혈압</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="메모"></div>
+    <div class="condition-item" data-condition="diabetes"><strong>당뇨</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="메모"></div>
+    <div class="condition-item" data-condition="pulmonaryTb"><strong>폐결핵</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="메모"></div>
+    <div class="condition-item" data-condition="hepatitis"><strong>간염</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="메모"></div>
+    <div class="condition-item" data-condition="cancer"><strong>암</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="부위/상태"></div>
+    <div class="condition-item" data-condition="operationHistory"><strong>수술기왕력</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="수술명/시기"></div>
+    <div class="condition-item" data-condition="stroke"><strong>뇌졸중</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="메모"></div>
+    <div class="condition-item" data-condition="hyperlipidemia"><strong>고지혈증</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="메모"></div>
+    <div class="condition-item" data-condition="padCarotid"><strong>말초동맥 및 경동맥질환</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="부위/상태"></div>
+    <div class="condition-item" data-condition="allergy"><strong>알레르기</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="알레르기 종류"></div>
+    <div class="condition-item" data-condition="medication"><strong>투약</strong><select><option>미상</option><option>없음</option><option>있음</option></select><input class="input" placeholder="복용/투여 약물"></div>
+  </div>
+
+  <div class="toolbar" style="margin-top:14px">
+    <button class="btn teal" id="clinicalPatientSaveBtn">환자 master 저장</button>
+    <button class="btn secondary" id="goEpisodeEntryBtn" type="button">다음: ECMO episode 입력</button>
+  </div>
+
+  <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>가명 ID</th><th>등록번호 표시</th><th>성별</th><th>생년월일</th><th>키/몸무게</th><th>등록 기준일</th><th>과거력 세트</th><th>알레르기</th><th>투약</th><th>작업</th></tr></thead><tbody id="clinicalPatientBody"><tr class="empty-row"><td colspan="10"><strong>아직 등록된 환자가 없습니다.</strong><br><span>등록번호와 baseline 세트를 저장하세요.</span></td></tr></tbody></table></div>
+</section>
+
+<section class="card clinical-step-card" id="episode-entry-step">
+  <div class="toolbar">
+    <div><h3>2. ECMO episode sheet</h3><p class="small-muted">한 환자에게 1차 ECMO, 2차 ECMO처럼 episode sheet를 추가합니다. 환자 master와 과거력은 그대로 유지되고, 아래 시간 이벤트와 검사 기록만 episode별로 달라집니다.</p></div>
+    <span class="badge blue">episode timeline</span>
+  </div>
+
+  <div class="grid three">
+    <div class="field"><label>환자 선택</label><select id="episodePatientSelect"><option>등록된 환자가 없습니다.</option></select></div>
+    <div class="field"><label>현재 episode</label><input id="activeEpisodeLabel" class="input" readonly placeholder="episode를 추가하세요"></div>
+    <div class="field"><label>episode 추가</label><button class="btn secondary" id="addEcmoEpisodeBtn" type="button">+ ECMO episode 추가</button></div>
+  </div>
+
+  <div class="episode-tabs" id="episodeTabs" style="margin-top:14px"></div>
+
+  <div class="notice-box" style="margin-top:14px"><strong>공란 허용</strong><br>실제로 살아계시거나 아직 퇴원/사망이 확인되지 않은 경우 discharge date, death date, discharge alive는 비워둘 수 있습니다. 저장된 날짜가 있는 이벤트만 타임라인에 표시됩니다.</div>
+
+  <div class="section-title" style="margin-top:18px"><h2>episode별 주요 시간 이벤트</h2><span class="badge gray">date/time long-format 준비</span></div>
+  <div class="grid three">
+    <div class="field"><label>ECMO start time</label><input id="ecmoStartTime" class="input" type="datetime-local"></div>
+    <div class="field"><label>ECMO finish time</label><input id="ecmoFinishTime" class="input" type="datetime-local"></div>
+    <div class="field"><label>Discharge alive</label><select id="dischargeAlive"><option value="">공란</option><option value="alive">Yes · 생존퇴원</option><option value="dead">No · 사망</option><option value="unknown">미상</option></select></div>
+    <div class="field"><label>Intubation start time</label><input id="intubationStartTime" class="input" type="datetime-local"></div>
+    <div class="field"><label>Extubation date and time</label><input id="extubationDateTime" class="input" type="datetime-local"></div>
+    <div class="field"><label>ICU discharge date and time</label><input id="icuDischargeDateTime" class="input" type="datetime-local"></div>
+    <div class="field"><label>Discharge date</label><input id="dischargeDate" class="input" type="date"></div>
+    <div class="field"><label>Death date</label><input id="deathDate" class="input" type="date"></div>
+    <div class="field"><label>비고</label><input id="episodeNote" class="input" placeholder="예: 재삽관, 전원, 재치료 사유"></div>
+  </div>
+  <div class="toolbar" style="margin-top:12px">
+    <button class="btn teal" id="episodeSaveBtn" type="button">현재 episode 저장</button>
+    <button class="btn ghost" id="episodeDeleteBtn" type="button">현재 episode 삭제</button>
+  </div>
+
+  <div class="section-title" style="margin-top:22px"><h2>Pre-ECMO 검사 결과</h2><span class="badge blue">ABGA + 진단검사</span></div>
+  <div class="clinical-subpanel">
+    <div class="field"><label>Pre-ECMO 검사일시, 선택</label><input id="preEcmoCheckDateTime" class="input" type="datetime-local"></div>
+    <h4>ABGA</h4>
+    <div class="grid six clinical-field-grid">
+      <div class="field"><label>pH</label><input id="preAbgaPh" class="input" type="number" step="any"></div>
+      <div class="field"><label>PCO2</label><input id="preAbgaPco2" class="input" type="number" step="any"></div>
+      <div class="field"><label>PO2</label><input id="preAbgaPo2" class="input" type="number" step="any"></div>
+      <div class="field"><label>HCO3</label><input id="preAbgaHco3" class="input" type="number" step="any"></div>
+      <div class="field"><label>SaO2</label><input id="preAbgaSao2" class="input" type="number" step="any"></div>
+      <div class="field"><label>Lactate</label><input id="preAbgaLactate" class="input" type="number" step="any"></div>
     </div>
-
-    <div class="card">
-      <div class="toolbar"><h3>1. 연구 태그 선택</h3><span class="badge teal">연구 단위 선택</span></div>
-      <div class="grid three">
-        <div class="field"><label>연구 태그</label><select><option>등록된 연구 태그가 없습니다. 먼저 태그를 생성하세요.</option></select></div>
-        <div class="field"><label>자료 연결 기준</label><select><option>가명 연구대상자 ID</option><option>연구 이벤트 ID</option><option>Vital file ID</option><option>Dataset ID</option><option>사용자 지정 key</option></select></div>
-        <div class="field"><label>입력 방식</label><select><option>웹에서 직접 입력</option><option>저장된 변수 세트 불러오기</option><option>반복 입력 양식 만들기</option></select></div>
-      </div>
-      <p class="muted">태그는 연구를 구분하는 큰 라벨입니다. Day, 대조군, 처치군 같은 값은 선택한 연구 태그 안에서 각 환자/파일/시점에 입력되는 연구 내 분류값입니다.</p>
-    </div>
-
-    <div class="card">
-      <div class="toolbar"><h3>1-1. 연구 대상자 배정</h3><button class="btn teal" id="studyPatientSaveBtn">선택 환자 배정</button></div>
-      <p class="muted">이미 등록된 환자 master에서 이 연구 태그에 포함할 대상자를 선택합니다. 환자 정보는 고정이고, 비교군·기준시점·관찰구간·검사항목은 아래 단계에서 연구별로 반복됩니다.</p>
-      <div class="table-wrap"><table><thead><tr><th>선택</th><th>가명 ID</th><th>등록번호</th><th>성별</th><th>출생연도</th><th>상태</th></tr></thead><tbody id="studyPatientBody"><tr class="empty-row"><td colspan="6"><strong>배정할 환자 master가 없습니다.</strong><br><span>먼저 고정 환자 정보를 등록하세요.</span></td></tr></tbody></table></div>
-    </div>
-
-    <div class="card">
-      <div class="toolbar"><h3>2. 연구 내 분류값 선택</h3><button class="btn ghost" data-disabled-action="백엔드 연결 후 연구 내 분류값 추가가 활성화됩니다.">분류값 추가</button></div>
-      <div class="grid three">
-        <div class="field"><label>관찰구간 / Timepoint</label><select><option>선택 안 함</option><option>표준값에서 선택</option><option>직접 작성 후 표준값으로 등록</option></select></div>
-        <div class="field"><label>비교군</label><select><option>선택 안 함</option><option>표준값에서 선택</option><option>직접 작성 후 표준값으로 등록</option></select></div>
-        <div class="field"><label>자료영역 / 상태</label><select><option>선택 안 함</option><option>표준값에서 선택</option><option>직접 작성 후 표준값으로 등록</option></select></div>
-      </div>
-      <div class="direct-entry">
-        <div class="direct-entry-title"><strong>연구 내 분류값 직접 작성</strong><span class="badge gray">필요할 때만 입력</span></div>
-        <div class="grid three">
-          <div class="field"><label>직접 작성 관찰구간 / Timepoint</label><input class="input" placeholder="예: Pre-index, 24h, Day 2, POD 1"></div>
-          <div class="field"><label>직접 작성 비교군</label><input class="input" placeholder="예: ECMO, Non-ECMO, Matched control"></div>
-          <div class="field"><label>직접 작성 자료영역 / 상태</label><input class="input" placeholder="예: Lab, Microbiology, Outcome, Post-index"></div>
-        </div>
-        <div class="helper">직접 작성한 값은 저장 시 표준 드롭다운 후보로 등록할 수 있게 합니다. 예: 2days, day2, D2처럼 흩어지지 않도록 대표 표기와 동의어를 함께 관리합니다.</div>
-      </div>
-      <div class="callout" style="margin-top:14px">예: ECMO군은 Pre-index/During ECMO/Post-index 궤적으로 여러 자료가 반복될 수 있고, Non-ECMO군은 ICU admission 또는 pseudo-index time을 기준으로 적은 관측값이나 단일 관측값을 연결할 수 있습니다.</div>
-    </div>
-
-    <div class="card">
-      <div class="toolbar"><h3>3. 입력할 자료 항목 직접 고르기</h3><button class="btn teal" data-disabled-action="저장된 연구 태그가 없습니다. 태그를 먼저 생성해 주세요.">선택 항목 추가</button></div>
-      <div class="grid three">
-        <label class="mini-item"><strong><input type="checkbox"> 환자 기본정보</strong><span>성별, 나이, 키, 몸무게 등 필요한 항목만 선택</span></label>
-        <label class="mini-item"><strong><input type="checkbox"> 임상 관찰값</strong><span>혈압, 맥박, 호흡수, 체온 등 직접 선택</span></label>
-        <label class="mini-item"><strong><input type="checkbox"> 검사 결과</strong><span>검사명, 값, 단위, 측정 시점 입력</span></label>
-        <label class="mini-item"><strong><input type="checkbox"> 처치/노출 정보</strong><span>약물, 장비, 시술, intervention 여부</span></label>
-        <label class="mini-item"><strong><input type="checkbox"> 결과 변수</strong><span>생존, 퇴원, 합병증, 회복 여부 등</span></label>
-        <label class="mini-item"><strong><input type="checkbox"> 사용자 정의 항목</strong><span>연구자가 이름, 단위, 값 형식을 직접 생성</span></label>
-      </div>
-      <div class="direct-entry">
-        <div class="direct-entry-title"><strong>자료 항목 직접 작성</strong><span class="badge teal">custom variable</span></div>
-        <div class="grid three">
-          <div class="field"><label>항목명</label><input class="input" placeholder="예: lactate clearance, vasopressor dose"></div>
-          <div class="field"><label>항목 종류</label><input class="input" placeholder="예: lab, medication, outcome, device"></div>
-          <div class="field"><label>단위/표기</label><input class="input" placeholder="예: mmol/L, mcg/kg/min, yes/no"></div>
-        </div>
-        <div class="field" style="margin-top:10px"><label>설명 또는 입력 규칙</label><textarea rows="2" placeholder="예: ECMO 시작 후 24시간 이내 최저 lactate 값으로 입력"></textarea></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="toolbar">
-        <h3>4. 새 변수 만들기</h3>
-        <div class="actions">
-          <button class="btn ghost" id="variableResetBtn">초기화</button>
-          <button class="btn teal" id="variableSaveBtn">새 변수 저장</button>
-        </div>
-      </div>
-      <p class="muted">변수 생성은 일부러 단순하게 유지합니다. <strong>변수명, 자료형, 단위</strong>만 입력하고 저장하면 변수 사전에 계속 누적됩니다. 연구 내 분류값, 환자 매칭, Day/Group 정보는 이후 단계에서 따로 붙입니다.</p>
-      <div class="grid three compact-variable-form">
-        <div class="field"><label>변수명</label><input id="newVarName" class="input" placeholder="예: lactate, ABP_mean, culture_result"></div>
-        <div class="field"><label>자료형</label><select id="newVarType"><option>숫자</option><option>범주형</option><option>날짜/시간</option><option>예/아니오</option><option>자유 텍스트</option></select></div>
-        <div class="field"><label>단위</label><input id="newVarUnit" class="input" placeholder="예: mmol/L, mmHg, %, 없음"></div>
-      </div>
-      <div class="callout" style="margin-top:14px">예: lactate 저장 → CRP 저장 → culture_result 저장처럼 계속 추가합니다. 각 변수를 어느 환자, 어느 Day, 어느 그룹에 붙일지는 아래 입력 예정 자료에서 따로 연결합니다.</div>
-      <div class="table-wrap" style="margin-top:14px">
-        <table>
-          <thead><tr><th>변수명</th><th>자료형</th><th>단위</th><th>연구 태그</th><th>작업</th></tr></thead>
-          <tbody id="variableLibraryBody"><tr class="empty-row"><td colspan="5"><strong>저장된 변수가 없습니다.</strong><br><span>변수명, 자료형, 단위만 입력한 뒤 계속 저장하세요.</span></td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="toolbar"><h3>입력 예정 자료</h3><span class="badge gray">아직 없음</span></div>
-      <p class="muted">변수 사전에 저장한 변수를 실제 환자/Day/group에 연결하면 입력 예정 자료가 됩니다.</p>
-      <div class="table-wrap"><table><thead><tr><th>선택</th><th>연구 태그</th><th>연구 내 분류 / 궤적 구조</th><th>변수명</th><th>자료형</th><th>단위</th><th>매칭 기준</th><th>상태</th></tr></thead><tbody><tr class="empty-row"><td colspan="8"><strong>아직 추가된 입력 항목이 없습니다.</strong><br><span>연구 태그를 선택하고, 연구 내 분류값과 저장된 변수를 연결하면 이곳에 표시됩니다.</span></td></tr></tbody></table></div>
+    <h4>진단검사</h4>
+    <div class="grid six clinical-field-grid">
+      <div class="field"><label>WBC</label><input id="preLabWbc" class="input" type="number" step="any"></div>
+      <div class="field"><label>Hgb</label><input id="preLabHgb" class="input" type="number" step="any"></div>
+      <div class="field"><label>Hct(Low)</label><input id="preLabHctLow" class="input" type="number" step="any"></div>
+      <div class="field"><label>Plt(Low)</label><input id="preLabPltLow" class="input" type="number" step="any"></div>
+      <div class="field"><label>PH(Low)</label><input id="preLabPhLow" class="input" type="number" step="any"></div>
+      <div class="field"><label>K</label><input id="preLabK" class="input" type="number" step="any"></div>
+      <div class="field"><label>Na</label><input id="preLabNa" class="input" type="number" step="any"></div>
+      <div class="field"><label>HCO3(Low)</label><input id="preLabHco3Low" class="input" type="number" step="any"></div>
+      <div class="field"><label>Ca</label><input id="preLabCa" class="input" type="number" step="any"></div>
+      <div class="field"><label>Lactate</label><input id="preLabLactate" class="input" type="number" step="any"></div>
+      <div class="field"><label>Albumin</label><input id="preLabAlbumin" class="input" type="number" step="any"></div>
+      <div class="field"><label>Creatinine</label><input id="preLabCreatinine" class="input" type="number" step="any"></div>
+      <div class="field"><label>Bilirubin</label><input id="preLabBilirubin" class="input" type="number" step="any"></div>
+      <div class="field"><label>AST</label><input id="preLabAst" class="input" type="number" step="any"></div>
+      <div class="field"><label>INR</label><input id="preLabInr" class="input" type="number" step="any"></div>
+      <div class="field"><label>Fibrinogen</label><input id="preLabFibrinogen" class="input" type="number" step="any"></div>
     </div>
   </div>
 
-  <aside class="card preview-card">
-    <h3>입력 구조</h3>
-    <div class="mini-list">
-      <div class="mini-item"><strong>1. 연구 태그</strong><span>어떤 연구 데이터인지 구분합니다.</span></div>
-      <div class="mini-item"><strong>2. 연구 내 분류값</strong><span>비교군, 기준시점, 관찰구간, Timepoint, 자료영역을 고릅니다.</span></div>
-      <div class="mini-item"><strong>3. 변수 입력</strong><span>x축/y축/분석에 사용할 실제 값을 저장합니다.</span></div>
-      <div class="mini-item"><strong>4. 환자·파일 매칭</strong><span>가명 ID, 이벤트 ID, Vital file ID로 연결합니다.</span></div>
+  <div class="section-title" style="margin-top:22px"><h2>ECMO 중 4시간 / 24시간 경과</h2><span class="badge teal">pump · ABGA · vent · hemodynamics</span></div>
+  <div class="episode-measure-grid">
+    <div class="clinical-subpanel">
+      <h4>4시간 경과</h4>
+      <div class="grid three clinical-field-grid">
+        <div class="field"><label>측정일시, 선택</label><input id="during4hDateTime" class="input" type="datetime-local"></div>
+        <div class="field"><label>ECMO pump flow</label><input id="during4hPumpFlow" class="input" type="number" step="any" placeholder="L/min"></div>
+        <div class="field"><label>Vent mode</label><select id="during4hVentMode" data-vent-mode-select><option value="">선택 안 함</option></select></div>
+      </div>
+      <div class="grid six clinical-field-grid">
+        <div class="field"><label>ABGA pH</label><input id="during4hAbgaPh" class="input" type="number" step="any"></div>
+        <div class="field"><label>PCO2</label><input id="during4hAbgaPco2" class="input" type="number" step="any"></div>
+        <div class="field"><label>PO2</label><input id="during4hAbgaPo2" class="input" type="number" step="any"></div>
+        <div class="field"><label>HCO3</label><input id="during4hAbgaHco3" class="input" type="number" step="any"></div>
+        <div class="field"><label>SaO2</label><input id="during4hAbgaSao2" class="input" type="number" step="any"></div>
+        <div class="field"><label>Lactate</label><input id="during4hAbgaLactate" class="input" type="number" step="any"></div>
+        <div class="field"><label>FiO2</label><input id="during4hVentFio2" class="input" type="number" step="any"></div>
+        <div class="field"><label>RR</label><input id="during4hVentRr" class="input" type="number" step="any"></div>
+        <div class="field"><label>PEEP</label><input id="during4hVentPeep" class="input" type="number" step="any"></div>
+        <div class="field"><label>SBP</label><input id="during4hHemoSbp" class="input" type="number" step="any"></div>
+        <div class="field"><label>DBP</label><input id="during4hHemoDbp" class="input" type="number" step="any"></div>
+        <div class="field"><label>Mean BP</label><input id="during4hHemoMeanBp" class="input" type="number" step="any"></div>
+        <div class="field"><label>SPAP</label><input id="during4hHemoSpap" class="input" type="number" step="any"></div>
+        <div class="field"><label>DPAP</label><input id="during4hHemoDpap" class="input" type="number" step="any"></div>
+        <div class="field"><label>Mean PAP</label><input id="during4hHemoMeanPap" class="input" type="number" step="any"></div>
+      </div>
     </div>
-    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
-    <a class="btn secondary" href="tag-manager.html">연구 태그 먼저 관리</a>
-  </aside>
+
+    <div class="clinical-subpanel">
+      <h4>24시간 경과</h4>
+      <div class="grid three clinical-field-grid">
+        <div class="field"><label>측정일시, 선택</label><input id="during24hDateTime" class="input" type="datetime-local"></div>
+        <div class="field"><label>ECMO pump flow</label><input id="during24hPumpFlow" class="input" type="number" step="any" placeholder="L/min"></div>
+        <div class="field"><label>Vent mode</label><select id="during24hVentMode" data-vent-mode-select><option value="">선택 안 함</option></select></div>
+      </div>
+      <div class="grid six clinical-field-grid">
+        <div class="field"><label>ABGA pH</label><input id="during24hAbgaPh" class="input" type="number" step="any"></div>
+        <div class="field"><label>PCO2</label><input id="during24hAbgaPco2" class="input" type="number" step="any"></div>
+        <div class="field"><label>PO2</label><input id="during24hAbgaPo2" class="input" type="number" step="any"></div>
+        <div class="field"><label>HCO3</label><input id="during24hAbgaHco3" class="input" type="number" step="any"></div>
+        <div class="field"><label>SaO2</label><input id="during24hAbgaSao2" class="input" type="number" step="any"></div>
+        <div class="field"><label>Lactate</label><input id="during24hAbgaLactate" class="input" type="number" step="any"></div>
+        <div class="field"><label>FiO2</label><input id="during24hVentFio2" class="input" type="number" step="any"></div>
+        <div class="field"><label>RR</label><input id="during24hVentRr" class="input" type="number" step="any"></div>
+        <div class="field"><label>PEEP</label><input id="during24hVentPeep" class="input" type="number" step="any"></div>
+        <div class="field"><label>SBP</label><input id="during24hHemoSbp" class="input" type="number" step="any"></div>
+        <div class="field"><label>DBP</label><input id="during24hHemoDbp" class="input" type="number" step="any"></div>
+        <div class="field"><label>Mean BP</label><input id="during24hHemoMeanBp" class="input" type="number" step="any"></div>
+        <div class="field"><label>SPAP</label><input id="during24hHemoSpap" class="input" type="number" step="any"></div>
+        <div class="field"><label>DPAP</label><input id="during24hHemoDpap" class="input" type="number" step="any"></div>
+        <div class="field"><label>Mean PAP</label><input id="during24hHemoMeanPap" class="input" type="number" step="any"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:22px"><h2>Vent 종료 시점</h2><span class="badge gray">선택 안 함 허용 · mode 직접 추가 가능</span></div>
+  <div class="clinical-subpanel">
+    <div class="grid four clinical-field-grid">
+      <div class="field"><label>Vent</label><select id="ventEndVent"><option value="">선택 안 함</option><option>On</option><option>Off</option><option>Weaning</option><option>Extubated</option></select></div>
+      <div class="field"><label>Mode</label><select id="ventEndMode" data-vent-mode-select><option value="">선택 안 함</option></select></div>
+      <div class="field"><label>FiO2</label><input id="ventEndFio2" class="input" type="number" step="any"></div>
+      <div class="field"><label>RR</label><input id="ventEndRr" class="input" type="number" step="any"></div>
+      <div class="field"><label>PEEP</label><input id="ventEndPeep" class="input" type="number" step="any"></div>
+      <div class="field"><label>PIP</label><input id="ventEndPip" class="input" type="number" step="any"></div>
+      <div class="field"><label>Mode 신규 추가</label><input id="newVentModeName" class="input" placeholder="예: PSV, CPAP"></div>
+      <div class="field"><label>작업</label><button class="btn secondary" id="ventModeAddBtn" type="button">Vent mode 추가</button></div>
+    </div>
+  </div>
+
+  <div class="toolbar" style="margin-top:12px">
+    <button class="btn teal" id="episodeMeasurementSaveBtn" type="button">현재 episode 검사/vent/hemodynamics 저장</button>
+    <span class="badge gray">저장값은 1차/2차 ECMO별로 분리</span>
+  </div>
+
+  <div class="section-title" style="margin-top:20px"><h2>환자별 episode 2D timeline</h2><span class="badge teal">날짜 선으로 확인</span></div>
+  <div id="episodeTimeline" class="timeline-panel"><div class="empty-row"><strong>episode를 추가하면 타임라인이 표시됩니다.</strong></div></div>
 </section>
+
+<section class="grid two" id="clinical-entry-step">
+  <div class="card clinical-step-card">
+    <div class="toolbar"><div><h3>3-1. 미생물검사 입력</h3><p class="small-muted">시행 날짜, 채취부위, 균주 태그, 결과를 episode별로 입력합니다. 채취부위는 비워둘 수 있습니다.</p></div><span class="badge blue">임상병리</span></div>
+    <div class="grid two">
+      <div class="field"><label>환자 선택</label><select id="microPatientSelect"><option>등록된 환자가 없습니다.</option></select></div>
+      <div class="field"><label>ECMO episode</label><select id="microEpisodeSelect"><option>episode 선택 안 함</option></select></div>
+      <div class="field"><label>시행 날짜</label><input id="microDate" class="input" type="date"></div>
+      <div class="field"><label>채취부위</label><select id="microSpecimenSite"><option value="">비워둠</option><option>객담(호흡기)</option><option>혈액</option><option>스툴(대변)</option><option>소변</option><option>기타</option></select></div>
+      <div class="field"><label>균주 이름 / 균주 태그</label><select id="organismSelect"><option>균주 태그 없음</option></select></div>
+      <div class="field"><label>검사 결과</label><select id="microResult"><option value="R">R</option><option value="U">U</option><option value="B">B</option></select></div>
+    </div>
+    <div class="organism-add-row">
+      <div class="field"><label>균주 태그 신규 추가</label><input id="newOrganismName" class="input" placeholder="예: Serratia marcescens"></div>
+      <button class="btn secondary" id="organismAddBtn" type="button">균주 태그 추가</button>
+    </div>
+    <div class="toolbar" style="margin-top:12px"><button class="btn teal" id="microSaveBtn">미생물검사 저장</button><span class="badge gray" id="organismCountBadge">균주 태그 0개</span></div>
+    <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>환자</th><th>episode</th><th>시행 날짜</th><th>채취부위</th><th>균주</th><th>결과</th><th>작업</th></tr></thead><tbody id="microRecordBody"><tr class="empty-row"><td colspan="7"><strong>저장된 미생물검사 기록이 없습니다.</strong><br><span>환자와 episode를 선택해 저장하세요.</span></td></tr></tbody></table></div>
+  </div>
+
+  <div class="card clinical-step-card">
+    <div class="toolbar"><div><h3>3-2. 일반 진단검사 기록 입력</h3><p class="small-muted">반복 검사 기록이 필요할 때 WBC, CRP, procalcitonin 결과값을 숫자로 입력하고 episode에 연결합니다. Pre-ECMO 상세 검사는 위 episode sheet에 따로 저장합니다.</p></div><span class="badge blue">임상병리</span></div>
+    <div class="grid two">
+      <div class="field"><label>환자 선택</label><select id="labPatientSelect"><option>등록된 환자가 없습니다.</option></select></div>
+      <div class="field"><label>ECMO episode</label><select id="labEpisodeSelect"><option>episode 선택 안 함</option></select></div>
+      <div class="field"><label>검사 날짜</label><input id="labDate" class="input" type="date"></div>
+      <div class="field"><label>WBC</label><input id="labWbc" class="input" type="number" step="any" placeholder="숫자"></div>
+      <div class="field"><label>CRP</label><input id="labCrp" class="input" type="number" step="any" placeholder="숫자"></div>
+      <div class="field"><label>Procalcitonin</label><input id="labPct" class="input" type="number" step="any" placeholder="숫자"></div>
+    </div>
+    <div class="toolbar" style="margin-top:12px"><button class="btn teal" id="labSaveBtn">진단검사 저장</button><span class="badge gray">숫자값만 저장</span></div>
+    <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>환자</th><th>episode</th><th>검사 날짜</th><th>WBC</th><th>CRP</th><th>Procalcitonin</th><th>작업</th></tr></thead><tbody id="labRecordBody"><tr class="empty-row"><td colspan="7"><strong>저장된 진단검사 기록이 없습니다.</strong><br><span>WBC, CRP, procalcitonin 값을 입력하세요.</span></td></tr></tbody></table></div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="toolbar"><h3>입력 구조 요약</h3><span class="badge teal">episode-based long-format</span></div>
+  <div class="clinical-flow">
+    <div><strong>환자 master</strong><span>등록번호 + baseline 과거력/투약 세트</span></div>
+    <div><strong>ECMO episode</strong><span>1차/2차 sheet + ECMO/삽관/퇴원/사망 이벤트</span></div>
+    <div><strong>미생물검사</strong><span>episode + 날짜 + 채취부위 + 균주 태그 + R/U/B</span></div>
+    <div><strong>진단검사</strong><span>episode + 날짜 + WBC/CRP/PCT 숫자값</span></div>
+  </div>
+</section>
+
 <div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
 </main>
 </div>

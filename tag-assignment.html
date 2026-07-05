@@ -37,7 +37,7 @@
   <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
 </aside>
 <main class="main">
-<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>태그 부여</h2><p>연구 태그를 먼저 선택하고, 그 태그 안에서 환자·파일·시점별 Day/group/visit 같은 연구 내 분류값을 함께 저장합니다.</p></section>
+<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>태그 부여</h2><p>연구 태그를 먼저 선택하고, 그 태그를 사람·시점·ECMO episode·검사기록 중 어디에 붙일지 명확히 정한 뒤 연구 내 분류값을 함께 저장합니다.</p></section>
 
 <section class="split">
   <div class="grid">
@@ -45,10 +45,10 @@
       <h3>1. 연구 태그 선택</h3>
       <div class="grid three">
         <div class="field"><label>연구 태그</label><select><option>등록된 연구 태그가 없습니다.</option></select></div>
-        <div class="field"><label>부여 대상</label><select><option>연구대상자</option><option>연구 이벤트</option><option>Vital file</option><option>Vital dataset</option><option>임상자료</option><option>분석 결과</option></select></div>
+        <div class="field"><label>태그를 붙일 단위</label><select><option>사람, 연구대상자</option><option>사람 + 시점</option><option>사람 + ECMO episode</option><option>사람 + 검사기록</option><option>사람 + raw CSV/QC 파일</option><option>분석용 파생 데이터셋</option></select></div>
         <div class="field"><label>부여 방식</label><select><option>선택 항목에 부여</option><option>검색 결과 전체에 부여</option><option>조건식으로 일괄 부여</option></select></div>
       </div>
-      <p class="muted">먼저 연구 태그를 붙여 “이 데이터가 어떤 연구에 들어가는지”를 정합니다. 그 다음 같은 태그 안에서 Day, group, visit 같은 연구 내 분류값을 채웁니다.</p>
+      <p class="muted">먼저 “누구에게 붙이는지”와 “어느 시점/episode에 붙이는지”를 명확히 정합니다. 파일이나 결과물은 필요할 때 사람+시점에 연결되는 보조 자료로 다룹니다.</p>
     </div>
 
     <div class="card">
