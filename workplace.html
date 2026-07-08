@@ -6,47 +6,135 @@
 <title>작업공간 | EXCITE plus</title>
 <link rel="stylesheet" href="assets/styles.css" />
 </head>
-<body>
+<body class="workplace-home">
 <header class="app-header">
   <a class="brand-inline" href="dashboard.html">
     <span class="logo-mark">E+</span>
     <span><span class="brand-title">EXCITE plus</span></span>
   </a>
   <nav class="top-nav">
-    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
-      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
-    </div></div>
-    <a href="research-projects.html" data-href="research-projects.html">연구</a>
-    <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
-    <a href="tag-manager.html" data-href="tag-manager.html">태그</a>
-    <a href="statistical-analysis.html" data-href="statistical-analysis.html">통계 분석</a>
-    <a href="analysis-results.html" data-href="analysis-results.html">결과</a>
-    <a href="members.html" data-href="members.html">관리</a>
+    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/></svg></i>작업공간 ▾</a><div class="dropdown-content"><a href="workplace.html" data-href="workplace.html">작업공간 홈</a><a href="patient-upload.html" data-href="patient-upload.html">환자/검사 정보 입력</a><a href="vital-upload.html" data-href="vital-upload.html">Raw CSV 업로드</a><a href="patient-matching.html" data-href="patient-matching.html">환자–CSV 통합 관리</a><a href="tag-assignment.html" data-href="tag-assignment.html">태그 부여</a><a href="analysis-preview.html" data-href="analysis-preview.html">분석 미리보기</a><a href="system-info.html" data-href="system-info.html">시스템 정보</a></div></div>
+    <a href="research-projects.html" data-href="research-projects.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v6.2l-5.4 9.3A2 2 0 0 0 6.3 21.5h11.4a2 2 0 0 0 1.7-3L14 9.2V3"/></svg></i>연구</a>
+    <a href="vital-registry.html" data-href="vital-registry.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.3z"/><path d="M14 2.5V8.3h5.5"/></svg></i>파일</a>
+    <a href="tag-manager.html" data-href="tag-manager.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.3H2.3v9.7l9.3 9.4a2 2 0 0 0 2.8 0l7.1-7.1a2 2 0 0 0 0-2.8z"/><circle cx="7" cy="7.3" r="1.3" fill="currentColor" stroke="none"/></svg></i>태그</a>
+    <a href="statistical-analysis.html" data-href="statistical-analysis.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 3.5v17h17"/><rect x="7.5" y="12.5" width="3" height="5.5" rx=".6"/><rect x="12.7" y="8.5" width="3" height="9.5" rx=".6"/><rect x="17.9" y="5.5" width="3" height="12.5" rx=".6"/></svg></i>통계 분석</a>
+    <a href="analysis-results.html" data-href="analysis-results.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="4" width="13" height="17" rx="2"/><path d="M9.2 4V3.2a1 1 0 0 1 1-1h3.6a1 1 0 0 1 1 1V4"/><path d="M9 13l2 2 4-4.6"/></svg></i>결과</a>
+    <a href="members.html" data-href="members.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.2a8.2 8.2 0 0 0 0-2.4l1.9-1.5-2-3.4-2.3.9a8 8 0 0 0-2-1.2L14.6 3H9.4l-.4 2.6a8 8 0 0 0-2 1.2l-2.3-.9-2 3.4 1.9 1.5a8.2 8.2 0 0 0 0 2.4L2.7 14.7l2 3.4 2.3-.9a8 8 0 0 0 2 1.2l.4 2.6h5.2l.4-2.6a8 8 0 0 0 2-1.2l2.3.9 2-3.4z"/></svg></i>관리</a>
   </nav>
   <div class="user-area"><span>로그인 사용자</span><span class="avatar">E+</span><a href="login.html">로그아웃</a></div>
 </header>
-<div class="shell">
-<aside class="sidebar"><div class="title">작업공간</div>
-  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
-  <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
-  <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
-  <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
-  <a class="side-link" data-href="tag-manager.html" href="tag-manager.html"><strong>태그 관리</strong><span>연구별 태그 생성, 수정, 삭제</span></a>
-  <a class="side-link" data-href="statistical-analysis.html" href="statistical-analysis.html"><strong>통계 분석</strong><span>코호트 필터, 변수, 모델 설정</span></a>
-  <a class="side-link" data-href="analysis-results.html" href="analysis-results.html"><strong>결과</strong><span>저장된 분석 결과와 export</span></a>
-  <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
-</aside>
-<main class="main">
-<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>작업공간</h2><p>EXCITE 내부 연구자가 자주 사용하는 기능으로 바로 이동합니다.</p></section>
-<section class="grid four"><a class="card card-link" href="patient-upload.html"><div><span class="icon">D</span><h3>연구자료 직접 입력</h3><p>태그를 먼저 선택한 뒤 환자정보, 임상자료, 연구별 커스텀 자료를 업로드합니다.</p></div><span class="badge gray">0건</span></a>
-<a class="card card-link" href="vital-upload.html"><div><span class="icon">V</span><h3>Raw 파일 업로드</h3><p>.vital 파일을 여러 개 동시에 업로드하고 처리 상태를 확인합니다.</p></div><span class="badge gray">0개</span></a>
-<a class="card card-link" href="vital-registry.html"><div><span class="icon">R</span><h3>파일 등록대장</h3><p>업로드된 파일의 태그, 매칭, 처리 상태를 관리합니다.</p></div><span class="badge gray">0개</span></a>
-<a class="card card-link" href="tag-manager.html"><div><span class="icon">T</span><h3>태그 관리</h3><p>연구 목적별 태그를 생성·수정·삭제합니다.</p></div><span class="badge gray">0개</span></a>
-<a class="card card-link" href="patient-matching.html"><div><span class="icon">M</span><h3>매칭</h3><p>Vital 파일과 연구대상자 또는 연구 이벤트를 연결합니다.</p></div><span class="badge gray">0건</span></a>
-<a class="card card-link" href="statistical-analysis.html"><div><span class="icon">S</span><h3>통계 분석</h3><p>태그 기반 코호트, 변수, 모델, 그래프를 설정합니다.</p></div><span class="badge gray">준비</span></a>
-<a class="card card-link" href="analysis-results.html"><div><span class="icon">A</span><h3>분석 결과</h3><p>저장된 분석 결과와 그래프, 모델 정보를 확인합니다.</p></div><span class="badge gray">0건</span></a>
-<a class="card card-link" href="export-center.html"><div><span class="icon">E</span><h3>내보내기</h3><p>선택 자료를 CSV, Excel, Parquet, 원본 vital 형식으로 내보냅니다.</p></div><span class="badge gray">0건</span></a></section>
-<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
+<div class="shell workplace-shell">
+<main class="main workplace-main">
+  <section class="team-workspace-intro" aria-labelledby="workspaceTitle">
+    <div class="team-workspace-intro-top">
+      <span class="team-workspace-label"><span class="team-workspace-label-mark">E+</span> EXCITE Team Workspace</span>
+      <time id="workspaceToday" class="workspace-date"></time>
+    </div>
+    <div class="team-workspace-intro-body">
+      <div>
+        <p class="team-workspace-kicker">공동 연구 데이터 작업공간</p>
+        <h1 id="workspaceTitle">EXCITE Team의 연구 데이터를<br>한 곳에서 관리합니다.</h1>
+        <p class="team-workspace-description">환자 정보, ECMO episode, Raw CSV, 연구 분류와 분석 결과를 팀원이 동일한 기준으로 등록하고 확인할 수 있습니다.</p>
+        <div class="team-workspace-actions">
+          <a class="btn primary" href="patient-upload.html">환자·검사 정보 입력</a>
+          <a class="btn ghost" href="vital-upload.html">Raw CSV 업로드</a>
+          <a class="btn ghost" href="patient-matching.html">환자–CSV 정리</a>
+        </div>
+      </div>
+      <aside class="team-workspace-standard" aria-label="공동 관리 기준">
+        <span>TEAM STANDARD</span>
+        <strong>한 번 입력하고, 함께 확인합니다.</strong>
+        <ul>
+          <li>환자와 episode를 기준으로 CSV 연결</li>
+          <li>연구 태그와 하위그룹을 공통 구조로 관리</li>
+          <li>변경 이력과 분석 결과를 팀 단위로 공유</li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <section class="workspace-metrics team-workspace-metrics" aria-label="팀 데이터 현황">
+    <article class="workspace-metric-card">
+      <span class="workspace-metric-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20c.7-4 2.9-6 6.5-6s5.8 2 6.5 6"/></svg></span>
+      <div><span>등록 환자</span><strong id="workspacePatientCount">0</strong><small>Patient master</small></div>
+    </article>
+    <article class="workspace-metric-card">
+      <span class="workspace-metric-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg></span>
+      <div><span>등록 CSV</span><strong id="workspaceCsvCount">0</strong><small>Raw time-series</small></div>
+    </article>
+    <article class="workspace-metric-card">
+      <span class="workspace-metric-icon"><svg viewBox="0 0 24 24"><path d="M8.5 7.5 5 11a3.5 3.5 0 0 0 5 5l3-3M15.5 16.5 19 13a3.5 3.5 0 0 0-5-5l-3 3"/><path d="m9 15 6-6"/></svg></span>
+      <div><span>환자 연결 완료</span><strong id="workspaceMatchedCount">0</strong><small>Matched CSV</small></div>
+    </article>
+    <article class="workspace-metric-card">
+      <span class="workspace-metric-icon"><svg viewBox="0 0 24 24"><path d="M12 3H4v8l8.7 8.7a2 2 0 0 0 2.8 0l4.2-4.2a2 2 0 0 0 0-2.8z"/><circle cx="8" cy="7" r="1"/></svg></span>
+      <div><span>연구 태그</span><strong id="workspaceTagCount">0</strong><small>Shared structure</small></div>
+    </article>
+    <article class="workspace-metric-card">
+      <span class="workspace-metric-icon"><svg viewBox="0 0 24 24"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg></span>
+      <div><span>저장 분석</span><strong id="workspaceAnalysisCount">0</strong><small>Analysis results</small></div>
+    </article>
+  </section>
+
+  <section class="team-workspace-main-grid">
+    <article class="team-dashboard-panel team-quick-panel" aria-labelledby="quickWorkTitle">
+      <div class="team-panel-head">
+        <div><span>주요 업무</span><h2 id="quickWorkTitle">바로 시작하기</h2></div>
+        <p>팀원이 자주 사용하는 화면입니다.</p>
+      </div>
+      <div class="team-quick-grid">
+        <a href="patient-upload.html"><span class="team-quick-number">01</span><div><strong>환자·검사 정보</strong><small>환자 master와 episode 입력</small></div><b>→</b></a>
+        <a href="vital-upload.html"><span class="team-quick-number">02</span><div><strong>Raw CSV 업로드</strong><small>파일 변환과 QC 상태 확인</small></div><b>→</b></a>
+        <a href="patient-matching.html"><span class="team-quick-number">03</span><div><strong>환자–CSV 통합 관리</strong><small>환자·episode·CSV 연결</small></div><b>→</b></a>
+        <a href="tag-manager.html"><span class="team-quick-number">04</span><div><strong>태그 트리 편집</strong><small>하위그룹과 배치 데이터 관리</small></div><b>→</b></a>
+        <a href="tag-assignment.html"><span class="team-quick-number">05</span><div><strong>연구 태그 부여</strong><small>환자와 CSV 분류 적용</small></div><b>→</b></a>
+        <a href="statistical-analysis.html"><span class="team-quick-number">06</span><div><strong>통계 분석</strong><small>변수 선택과 결과 생성</small></div><b>→</b></a>
+      </div>
+    </article>
+
+    <aside class="team-dashboard-panel team-attention-panel" aria-labelledby="attentionTitle">
+      <div class="team-panel-head">
+        <div><span>데이터 점검</span><h2 id="attentionTitle">확인 필요</h2></div>
+        <a href="audit-log.html">감사 로그</a>
+      </div>
+      <div class="team-data-progress">
+        <div class="team-progress-row">
+          <div><span>CSV 환자 연결률</span><strong id="workspaceMatchRateText">0%</strong></div>
+          <div class="team-progress-track"><i id="workspaceMatchRateBar"></i></div>
+        </div>
+        <div class="team-progress-row">
+          <div><span>CSV 태그 적용률</span><strong id="workspaceTagRateText">0%</strong></div>
+          <div class="team-progress-track"><i id="workspaceTagRateBar"></i></div>
+        </div>
+      </div>
+      <div class="team-attention-list">
+        <a href="patient-matching.html"><span>환자 미연결 CSV</span><strong id="workspaceUnmatchedCsvCount">0</strong></a>
+        <a href="tag-manager.html"><span>태그 미지정 CSV</span><strong id="workspaceUntaggedCsvCount">0</strong></a>
+        <a href="tag-manager.html"><span>태그 미지정 환자</span><strong id="workspaceUntaggedPatientCount">0</strong></a>
+        <a href="members.html"><span>승인 대기 팀원</span><strong id="workspacePendingMemberCount">0</strong></a>
+      </div>
+    </aside>
+  </section>
+
+  <section class="team-workspace-secondary-grid">
+    <article class="team-dashboard-panel" aria-labelledby="projectTitle">
+      <div class="team-panel-head">
+        <div><span>연구 현황</span><h2 id="projectTitle">진행 중 연구</h2></div>
+        <a href="research-projects.html">전체 연구 보기</a>
+      </div>
+      <div id="workspaceProjectList" class="team-project-list"></div>
+    </article>
+
+    <article class="team-dashboard-panel" aria-labelledby="activityTitle">
+      <div class="team-panel-head">
+        <div><span>공동 작업 기록</span><h2 id="activityTitle">최근 팀 활동</h2></div>
+        <a href="audit-log.html">전체 기록 보기</a>
+      </div>
+      <div id="workspaceActivityList" class="team-activity-list"></div>
+    </article>
+  </section>
+
+  <div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
 </main>
 </div>
 <script src="assets/app.js"></script>

@@ -6,29 +6,37 @@
 <title>로그인 | EXCITE plus</title>
 <link rel="stylesheet" href="assets/styles.css" />
 </head>
-<body class="login-body">
-<section class="login-card">
-  <div class="brand">
-    <span class="logo-mark">E+</span>
-    <div><h1>EXCITE plus</h1><p>EXCITE 내부 연구팀 시스템</p></div>
-  </div>
-  <p>EXCITE 연구팀 구성원만 사용할 수 있습니다. 로그인 후 Raw CSV 파일, 연구자료, 태그, 통계 분석 기능을 사용할 수 있습니다.</p>
-  <div class="notice-box" style="margin-top:16px">
-    <strong>초기 관리자 계정</strong><br />
-    <span>아이디: <code>Admin_cs</code></span><br />
-    <span>비밀번호: <code>admin1q2w3e</code></span><br />
-    <small>프론트엔드 프로토타입 전용 계정입니다. 실제 배포 시 반드시 백엔드 인증과 비밀번호 정책으로 교체해야 합니다.</small>
-  </div>
-  <div class="form-stack" style="margin-top:20px">
-    <div class="field"><label>아이디</label><input id="loginEmail" class="input" type="text" placeholder="아이디를 입력하세요" autocomplete="username" /></div>
-    <div class="field"><label>비밀번호</label><input id="loginPassword" class="input" type="password" placeholder="비밀번호를 입력하세요" /></div>
-    <button id="loginSubmit" class="btn teal" type="button">로그인</button>
-  </div>
-  <div class="login-links">
-    <a href="#" data-disabled-action="관리자에게 비밀번호 초기화를 요청해 주세요.">비밀번호 찾기</a>
-    <a href="signup.html">회원가입</a>
-  </div>
-</section>
+<body class="login-split-body">
+<div class="login-shell">
+  <section class="login-visual" aria-hidden="false">
+    <div class="login-visual-inner">
+      <span class="logo-mark lg">E+</span>
+      <h2>EXCITE plus</h2>
+      <p class="login-visual-tag">ECMO 중환자의 vital, 검사, 태그, 분석을 하나의 흐름으로 연결합니다.</p>
+      <ul class="feature-pulse-list">
+        <li><i>♥</i> 생존군·사망군 vital 추세를 한눈에 비교</li>
+        <li><i>⏱</i> ECMO 이벤트에 CSV를 자동으로 연결</li>
+        <li><i>≈</i> 연구 태그와 분류값으로 대상 자료를 일관되게 관리</li>
+      </ul>
+    </div>
+  </section>
+  <section class="login-card">
+    <div class="brand">
+      <span class="logo-mark">E+</span>
+      <div><h1>EXCITE plus</h1><p>EXCITE 내부 연구팀 시스템</p></div>
+    </div>
+    <p>EXCITE 연구팀 구성원만 사용할 수 있습니다. 로그인 후 Raw CSV 파일, 연구자료, 태그, 통계 분석 기능을 사용할 수 있습니다.</p>
+    <div class="form-stack" style="margin-top:20px">
+      <div class="field"><label>아이디</label><input id="loginEmail" class="input" type="text" placeholder="아이디를 입력하세요" autocomplete="username" /></div>
+      <div class="field"><label>비밀번호</label><input id="loginPassword" class="input" type="password" placeholder="비밀번호를 입력하세요" /></div>
+      <button id="loginSubmit" class="btn teal" type="button">로그인</button>
+    </div>
+    <div class="login-links">
+      <a href="#" data-disabled-action="관리자에게 비밀번호 초기화를 요청해 주세요.">비밀번호 찾기</a>
+      <a href="signup.html">회원가입</a>
+    </div>
+  </section>
+</div>
 <script src="assets/app.js"></script>
 </body>
 </html>

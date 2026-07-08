@@ -1,49 +1,31 @@
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>환자/파일 매칭 | EXCITE plus</title>
-<link rel="stylesheet" href="assets/styles.css" />
-</head>
-<body>
-<header class="app-header">
-  <a class="brand-inline" href="dashboard.html">
-    <span class="logo-mark">E+</span>
-    <span><span class="brand-title">EXCITE plus</span></span>
-  </a>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>환자–CSV 통합 관리 | EXCITE plus</title><link rel="stylesheet" href="assets/styles.css"></head><body><header class="app-header">
+  <a class="brand-inline" href="dashboard.html"><span class="logo-mark">E+</span><span><span class="brand-title">EXCITE plus</span></span></a>
   <nav class="top-nav">
-    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html">작업공간 ▾</a><div class="dropdown-content">
-      <a href="patient-upload.html">연구자료 직접 입력</a><a href="vital-upload.html">Raw 파일 업로드</a><a href="vital-registry.html">파일 등록대장</a><a href="patient-matching.html">환자/파일 매칭</a><a href="tag-assignment.html">태그 부여</a><a href="tag-manager.html">태그 관리</a><a href="statistical-analysis.html">통계 분석</a><a href="analysis-preview.html">분석 미리보기</a><a href="export-center.html">내보내기</a>
-    </div></div>
-    <a href="research-projects.html" data-href="research-projects.html">연구</a>
-    <a href="vital-registry.html" data-href="vital-registry.html">파일</a>
-    <a href="tag-manager.html" data-href="tag-manager.html">태그</a>
-    <a href="statistical-analysis.html" data-href="statistical-analysis.html">통계 분석</a>
-    <a href="analysis-results.html" data-href="analysis-results.html">결과</a>
-    <a href="members.html" data-href="members.html">관리</a>
+    <div class="dropdown"><a class="dropbtn" href="workplace.html" data-href="workplace.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/></svg></i>작업공간 ▾</a><div class="dropdown-content"><a href="workplace.html" data-href="workplace.html">작업공간 홈</a><a href="patient-upload.html" data-href="patient-upload.html">환자/검사 정보 입력</a><a href="vital-upload.html" data-href="vital-upload.html">Raw CSV 업로드</a><a href="patient-matching.html" data-href="patient-matching.html">환자–CSV 통합 관리</a><a href="tag-assignment.html" data-href="tag-assignment.html">태그 부여</a><a href="analysis-preview.html" data-href="analysis-preview.html">분석 미리보기</a><a href="system-info.html" data-href="system-info.html">시스템 정보</a></div></div>
+    <a href="research-projects.html" data-href="research-projects.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v6.2l-5.4 9.3A2 2 0 0 0 6.3 21.5h11.4a2 2 0 0 0 1.7-3L14 9.2V3"/></svg></i>연구</a><a href="vital-registry.html" data-href="vital-registry.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.3z"/><path d="M14 2.5V8.3h5.5"/></svg></i>파일</a><a href="tag-manager.html" data-href="tag-manager.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.3H2.3v9.7l9.3 9.4a2 2 0 0 0 2.8 0l7.1-7.1a2 2 0 0 0 0-2.8z"/><circle cx="7" cy="7.3" r="1.3" fill="currentColor" stroke="none"/></svg></i>태그</a><a href="statistical-analysis.html" data-href="statistical-analysis.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 3.5v17h17"/><rect x="7.5" y="12.5" width="3" height="5.5" rx=".6"/><rect x="12.7" y="8.5" width="3" height="9.5" rx=".6"/><rect x="17.9" y="5.5" width="3" height="12.5" rx=".6"/></svg></i>통계 분석</a><a href="analysis-results.html" data-href="analysis-results.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="4" width="13" height="17" rx="2"/><path d="M9.2 4V3.2a1 1 0 0 1 1-1h3.6a1 1 0 0 1 1 1V4"/><path d="M9 13l2 2 4-4.6"/></svg></i>결과</a><a href="members.html" data-href="members.html"><i class="nav-ic-wrap" aria-hidden="true"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.2a8.2 8.2 0 0 0 0-2.4l1.9-1.5-2-3.4-2.3.9a8 8 0 0 0-2-1.2L14.6 3H9.4l-.4 2.6a8 8 0 0 0-2 1.2l-2.3-.9-2 3.4 1.9 1.5a8.2 8.2 0 0 0 0 2.4L2.7 14.7l2 3.4 2.3-.9a8 8 0 0 0 2 1.2l.4 2.6h5.2l.4-2.6a8 8 0 0 0 2-1.2l2.3.9 2-3.4z"/></svg></i>관리</a>
   </nav>
   <div class="user-area"><span>로그인 사용자</span><span class="avatar">E+</span><a href="login.html">로그아웃</a></div>
-</header>
-<div class="shell">
-<aside class="sidebar"><div class="title">작업공간</div>
-  <a class="side-link" data-href="patient-upload.html" href="patient-upload.html"><strong>연구자료 직접 입력</strong><span>연구 태그 안에서 변수·값·시점 입력</span></a>
-  <a class="side-link" data-href="vital-upload.html" href="vital-upload.html"><strong>Raw 파일 업로드</strong><span>raw CSV 업로드 및 즉시 QC</span></a>
-  <a class="side-link" data-href="vital-registry.html" href="vital-registry.html"><strong>파일 등록대장</strong><span>검색, 필터, 매칭, 태그, 분석 전송</span></a>
-  <a class="side-link" data-href="patient-matching.html" href="patient-matching.html"><strong>매칭</strong><span>파일 기록과 연구대상자 연결</span></a>
-  <a class="side-link" data-href="tag-manager.html" href="tag-manager.html"><strong>태그 관리</strong><span>연구별 태그 생성, 수정, 삭제</span></a>
-  <a class="side-link" data-href="statistical-analysis.html" href="statistical-analysis.html"><strong>통계 분석</strong><span>코호트 필터, 변수, 모델 설정</span></a>
-  <a class="side-link" data-href="analysis-results.html" href="analysis-results.html"><strong>결과</strong><span>저장된 분석 결과와 export</span></a>
-  <a class="side-link" data-href="system-info.html" href="system-info.html"><strong>시스템 정보</strong><span>분석환경과 파이프라인 버전</span></a>
-</aside>
-<main class="main">
-<section class="page-hero"><div class="breadcrumb">EXCITE plus</div><h2>환자/파일 매칭</h2><p>Vital 파일과 연구대상자, 연구 이벤트, 또는 태그별 custom key를 연결합니다.</p></section>
-
-<section class="grid analysis"><div class="card"><h3>매칭할 Vital 파일</h3><div class="table-wrap"><table><thead><tr><th>파일명</th><th>기록 시작</th><th>기록 종료</th><th>상태</th></tr></thead><tbody><tr class="empty-row"><td colspan="4"><strong>매칭 대기 중인 Vital 파일이 없습니다.</strong><br><span>데이터를 업로드하거나 조건을 선택하면 이 영역에 표시됩니다.</span></td></tr></tbody></table></div></div><div class="card"><h3>대상자/연구 이벤트 선택</h3><div class="grid two"><div class="field"><label>연구 태그</label><select><option>등록된 태그가 없습니다.</option></select></div><div class="field"><label>매칭 기준</label><select><option>가명 연구대상자 ID</option><option>기록 시간 겹침</option><option>사용자 지정 key</option></select></div></div><div class="empty-state" style="margin-top:14px"><strong>후보 대상자가 없습니다.</strong><span>환자정보와 Vital 파일을 먼저 업로드하면 후보 목록이 표시됩니다.</span></div></div><aside class="card preview-card"><h3>매칭 결과</h3><dl class="kv"><dt>선택 파일</dt><dd>0개</dd><dt>후보 대상자</dt><dd>0명</dd><dt>저장 대기</dt><dd>0건</dd><dt>자동 제안</dt><dd>0건</dd></dl><button class="btn teal" style="width:100%;margin-top:14px" data-disabled-action="저장할 매칭 결과가 없습니다.">매칭 결과 저장</button></aside></section>
-
-<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div>
-</main>
-</div>
-<script src="assets/app.js"></script>
-</body>
-</html>
+</header><div class="shell"><main class="main">
+<section class="page-hero"><div class="breadcrumb">EXCITE plus · Integrated matching workspace</div><h2>환자–연구 태그–ECMO episode–CSV 통합 관리</h2><p>환자를 검색하고, 중앙에서 환자 상세·태그·episode·연결 CSV를 확인하며, 우측의 미매칭 CSV를 환자 또는 episode에 연결합니다. 화면 목록은 환자 이니셜과 마스킹 등록번호를 기본으로 사용합니다.</p></section>
+<section class="card matching-filter-card"><div class="matching-filter-grid">
+ <div class="field"><label>환자 검색</label><input id="integratedPatientSearch" class="input" placeholder="환자 이니셜, 등록번호 끝자리"></div>
+ <div class="field"><label>ECMO 여부</label><select id="integratedEcmoFilter"><option value="">전체</option><option value="yes">ECMO</option><option value="no">비ECMO</option></select></div>
+ <div class="field"><label>ECMO mode</label><select id="integratedEcmoModeFilter"><option value="">전체</option><option>VA</option><option>VV</option><option>VAV</option><option>Other</option></select></div>
+ <div class="field"><label>생존 상태</label><select id="integratedOutcomeFilter"><option value="">전체</option><option value="alive">생존</option><option value="dead">사망</option><option value="unknown">미상</option></select></div>
+ <div class="field"><label>연구 태그</label><select id="integratedTagFilter"><option value="">전체 태그</option></select></div>
+ <div class="field"><label>CSV 연결</label><select id="integratedCsvFilter"><option value="">전체</option><option value="linked">연결 있음</option><option value="none">연결 없음</option><option value="unmatched">미매칭 자료 있음</option></select></div>
+ <div class="field"><label>정렬</label><select id="integratedSort"><option value="updated-desc">최근 수정 순</option><option value="reg-asc">환자번호 순</option><option value="birth-asc">생년월일 오래된 순</option><option value="birth-desc">생년월일 최근 순</option><option value="ecmo-first">ECMO 환자 먼저</option><option value="dead-first">사망환자 먼저</option><option value="alive-first">생존환자 먼저</option><option value="non-ecmo-first">비ECMO 환자 먼저</option><option value="upload-desc">CSV 업로드 최근 순</option><option value="upload-asc">CSV 업로드 오래된 순</option></select></div>
+ <button class="btn secondary" id="integratedResetBtn">필터 초기화</button>
+</div></section>
+<section class="integrated-matching-layout">
+ <section class="card matching-column patient-list-column"><div class="toolbar"><h3>환자 목록</h3><div class="patient-list-toolbar-actions"><span class="badge gray" id="integratedPatientCount">0명</span><div class="excel-export-menu" id="patientExcelExportMenu"><button class="btn teal excel-export-toggle" id="patientExcelExportToggle" type="button" aria-expanded="false">엑셀 다운로드 ▾</button><div class="excel-export-panel"><div class="field"><label for="patientExcelSortMode">정렬 버전</label><select id="patientExcelSortMode"><option value="name">환자 이니셜 순</option><option value="registration">등록번호 순</option><option value="ecmo-time">ECMO 시작시간 순</option><option value="all">정렬 3종을 한 파일에 포함</option></select></div><div class="field"><label for="patientExcelScope">내보내기 범위</label><select id="patientExcelScope"><option value="filtered">현재 필터 결과</option><option value="all">전체 환자</option></select></div><p class="excel-export-note">동일 환자의 2차 이상 ECMO는 같은 Annual No 그룹 바로 아래에 배치되며 연번을 새로 올리지 않습니다.</p><button class="btn teal" id="patientExcelDownloadBtn" type="button">Excel 파일 만들기</button><div id="patientExcelExportStatus" class="excel-export-status" aria-live="polite"></div></div></div></div></div><div id="integratedPatientList" class="integrated-patient-list"><div class="empty-state"><strong>등록된 환자가 없습니다.</strong></div></div></section>
+ <section class="card matching-column patient-detail-column"><div class="toolbar"><h3>선택한 환자 상세</h3><span class="badge teal" id="integratedSelectedPatient">선택 없음</span></div><div id="integratedPatientDetail"><div class="empty-state"><strong>좌측에서 환자를 선택하세요.</strong><span>태그, episode, 연결 CSV가 표시됩니다.</span></div></div></section>
+ <section class="card matching-column unmatched-column">
+  <div class="toolbar"><h3>매칭되지 않은 CSV</h3><span class="badge yellow" id="integratedUnmatchedCount">0개</span></div>
+  <div class="field unmatched-csv-search-field"><label for="integratedUnmatchedSearch">미매칭 CSV 검색</label><input class="input" id="integratedUnmatchedSearch" type="search" placeholder="파일명, 환자번호, 기록일, 모니터, 업로드일 입력"></div>
+  <div class="callout">검색 후 카드를 환자 카드 또는 중앙의 매칭 영역으로 끌어 놓거나, 버튼으로 환자와 episode를 선택합니다. 필요 없는 미매칭 CSV는 삭제할 수 있습니다.</div>
+  <div id="integratedUnmatchedList" class="unmatched-csv-list"><div class="empty-state"><strong>미매칭 CSV가 없습니다.</strong></div></div>
+</section>
+</section>
+<div class="modal-backdrop" id="integratedMatchModal"><div class="matching-modal"><div class="toolbar"><h3>CSV 매칭</h3><button class="btn ghost" id="integratedMatchModalClose">닫기</button></div><div class="field"><label>CSV</label><input id="integratedMatchFileName" class="input" readonly></div><div class="field" style="margin-top:12px"><label>환자</label><select id="integratedMatchPatientSelect"></select></div><div class="field" style="margin-top:12px"><label>ECMO episode, 선택</label><select id="integratedMatchEpisodeSelect"><option value="">episode 선택 안 함</option></select></div><div class="field" style="margin-top:12px"><label>확인 메모</label><input id="integratedMatchNote" class="input" placeholder="자동 제안 확인 또는 수동 매칭 사유"></div><button class="btn teal" id="integratedMatchSaveBtn" style="width:100%;margin-top:14px">매칭 승인</button></div></div>
+<div class="footer-note">EXCITE · https://excite-research.group/ · 61469 광주광역시 동구 제봉로 42, 전남대학교병원 · 전남대학교 어린이병원 · 전남대학교 의과대학</div></main></div><script src="assets/vendor/jszip.min.js"></script><script src="assets/app.js"></script><script src="assets/patient-export.js"></script></body></html>
